@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { handleApiError } from './apiErrorHandler';
 
 // Simple in-memory cache for the session
 const apiCache = new Map<string, any>();
@@ -63,7 +64,8 @@ The output MUST be a valid JSON array of strings, with no extra text, explanatio
     apiCache.set(cacheKey, resultMap);
     return resultMap;
   } catch (error) {
-    console.error('Translation API error:', error);
+    const errorMessage = handleApiError(error);
+    console.error('Translation API error:', errorMessage);
     // On error, return originals so the UI doesn't break
     const errorMap: Record<string, string> = {};
     texts.forEach(text => {

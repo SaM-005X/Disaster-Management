@@ -6,6 +6,7 @@ import { useTTS, type TTSText } from '../contexts/TTSContext';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { handleApiError } from '../services/apiErrorHandler';
 
 interface SolutionsViewProps {
   modules: LearningModule[];
@@ -82,8 +83,8 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
 
 const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack }) => {
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
-  const [modelSimulations, setModelSimulations] = useState<Record<string, { guide?: ModelSimulationGuide; isLoading: boolean }>>({});
-  const [quizExplanations, setQuizExplanations] = useState<Record<string, { explanations: Record<string, Explanation>; isLoading: boolean }>>({});
+  const [modelSimulations, setModelSimulations] = useState<Record<string, { guide?: ModelSimulationGuide; isLoading: boolean; error?: string }>>({});
+  const [quizExplanations, setQuizExplanations] = useState<Record<string, { explanations: Record<string, Explanation>; isLoading: boolean; error?: string }>>({});
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
   
@@ -91,13 +92,15 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack 
   useEffect(() => {
     const textsToRead: TTSText[] = [];
     
-    if (openModuleId) {
-        // If a module is open, focus the TTS queue on its content
-        const module = modules.find(m => m.id === openModuleId);
-        const quiz = quizzes.find(q => q.moduleId === openModuleId);
+    textsToRead.push({ id: 'solutions-view-header', text: translate('Answer Key & Guides') });
+    textsToRead.push({ id: 'solutions-view-subheader', text: translate('Review quiz answers and ideal simulation responses for each module. (For Teacher Use Only)') });
 
-        if (module) {
-            textsToRead.push({ id: `module-accordion-button-${module.id}`, text: translate(module.title) });
+    modules.forEach(module => {
+        textsToRead.push({ id: `module-accordion-button-${module.id}`, text: translate(module.title) });
+        const isOpen = openModuleId === module.id;
+        if (isOpen) {
+            // If this module is open, add all its content to the queue
+            const quiz = quizzes.find(q => q.moduleId === module.id);
             if (quiz) {
                 textsToRead.push({ id: `quiz-answers-header-${module.id}`, text: translate('Quiz Answers') });
                 quiz.questions.forEach((q, index) => {
@@ -111,13 +114,17 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack 
                     }
                 });
             }
-
+            
             textsToRead.push({ id: `model-response-header-${module.id}`, text: translate('Model Simulation Guide') });
             const modelGuide = modelSimulations[module.id]?.guide;
             if (modelGuide) {
                 modelGuide.scenarios.forEach((scenario, index) => {
                     textsToRead.push({ id: `model-sim-${module.id}-q${index}`, text: `${translate('Scenario')} ${index + 1}: ${translate(scenario.scenarioText)}`});
                     if (scenario.type === 'multiple-choice') {
+                         textsToRead.push({ id: `model-sim-${module.id}-choices-label-${index}`, text: translate('Choices')});
+                         scenario.choices?.forEach((choice, choiceIndex) => {
+                            textsToRead.push({ id: `model-sim-${module.id}-choice-${index}-${choiceIndex}`, text: translate(choice)});
+                         });
                         textsToRead.push({ id: `model-sim-${module.id}-a${index}`, text: `${translate('Correct Answer')}: ${translate(scenario.correctAnswer || '')}`});
                     } else {
                         textsToRead.push({ id: `model-sim-${module.id}-a${index}`, text: `${translate('Model Answer')}: ${translate(scenario.modelAnswer || '')}`});
@@ -125,14 +132,7 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack 
                 });
             }
         }
-    } else {
-        // If no module is open, register the main page headings
-        textsToRead.push({ id: 'solutions-view-header', text: translate('Answer Key & Guides') });
-        textsToRead.push({ id: 'solutions-view-subheader', text: translate('Review quiz answers and ideal simulation responses for each module. (For Teacher Use Only)') });
-        modules.forEach(module => {
-            textsToRead.push({ id: `module-accordion-button-${module.id}`, text: translate(module.title) });
-        });
-    }
+    });
 
     registerTexts(textsToRead);
     
@@ -201,8 +201,9 @@ Respond ONLY with a single valid JSON object using the schema provided.`;
         setModelSimulations(prev => ({ ...prev, [moduleId]: { guide, isLoading: false } }));
 
     } catch (error) {
-        console.error("Failed to generate model simulation guide:", error);
-        setModelSimulations(prev => ({ ...prev, [moduleId]: { guide: { scenarios: [] }, isLoading: false } }));
+        const errorMessage = handleApiError(error);
+        console.error("Failed to generate model simulation guide:", errorMessage);
+        setModelSimulations(prev => ({ ...prev, [moduleId]: { guide: { scenarios: [] }, isLoading: false, error: errorMessage } }));
     }
   }, [modules]);
 
@@ -273,8 +274,9 @@ ${moduleContextForAI}
         setQuizExplanations(prev => ({ ...prev, [moduleId]: { explanations, isLoading: false } }));
 
     } catch (error) {
-        console.error("Failed to generate quiz explanations:", error);
-        setQuizExplanations(prev => ({ ...prev, [moduleId]: { explanations: {}, isLoading: false } }));
+        const errorMessage = handleApiError(error);
+        console.error("Failed to generate quiz explanations:", errorMessage);
+        setQuizExplanations(prev => ({ ...prev, [moduleId]: { explanations: {}, isLoading: false, error: errorMessage } }));
     }
   }, [modules, quizzes]);
 
@@ -328,6 +330,11 @@ ${moduleContextForAI}
                   {quiz ? (
                     <>
                       <h3 id={`quiz-answers-header-${module.id}`} className={`text-lg font-semibold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === `quiz-answers-header-${module.id}` ? 'tts-highlight' : ''}`}>{translate('Quiz Answers')}</h3>
+                      {quizExplanations[module.id]?.error && (
+                         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/50 text-red-700 dark:text-red-200 rounded-lg text-sm">
+                            <strong>{translate('Could not load explanations:')}</strong> {quizExplanations[module.id]?.error}
+                         </div>
+                      )}
                       <div className="space-y-6">
                         {quiz.questions.map((q, index) => {
                           const explanationData = quizExplanations[module.id]?.explanations[q.id];
@@ -351,8 +358,8 @@ ${moduleContextForAI}
                                 </li>
                               ))}
                             </ul>
-                             {quizExplanations[module.id]?.isLoading && (
-                                 <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">...</div>
+                             {quizExplanations[module.id]?.isLoading && !explanationData && (
+                                 <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">{translate('Loading explanation...')}</div>
                              )}
                              {explanationData && (
                                 <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
@@ -388,7 +395,11 @@ ${moduleContextForAI}
 
                   <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                      <h3 id={`model-response-header-${module.id}`} className={`text-lg font-semibold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === `model-response-header-${module.id}` ? 'tts-highlight' : ''}`}>{translate('Model Simulation Guide')}</h3>
-                     {modelSimulations[module.id]?.isLoading ? (
+                     {modelSimulations[module.id]?.error ? (
+                         <div className="p-3 bg-red-50 dark:bg-red-900/50 text-red-700 dark:text-red-200 rounded-lg text-sm">
+                            <strong>{translate('Failed to generate guide:')}</strong> {modelSimulations[module.id]?.error}
+                        </div>
+                     ) : modelSimulations[module.id]?.isLoading ? (
                         <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
                             <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse [animation-delay:-0.3s]"></span>
                             <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse [animation-delay:-0.15s]"></span>
@@ -406,9 +417,9 @@ ${moduleContextForAI}
                                     <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-md border-l-4 border-teal-500">
                                         {scenario.type === 'multiple-choice' ? (
                                             <>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{translate('Choices')}:</p>
+                                                <p id={`model-sim-${module.id}-choices-label-${index}`} className={`text-sm text-gray-500 dark:text-gray-400 font-medium ${currentlySpokenId === `model-sim-${module.id}-choices-label-${index}` ? 'tts-highlight' : ''}`}>{translate('Choices')}:</p>
                                                 <ul className="list-disc list-inside mt-1 text-sm text-gray-600 dark:text-gray-300">
-                                                    {scenario.choices?.map((choice, i) => <li key={i}>{translate(choice)}</li>)}
+                                                    {scenario.choices?.map((choice, i) => <li id={`model-sim-${module.id}-choice-${index}-${i}`} key={i} className={currentlySpokenId === `model-sim-${module.id}-choice-${index}-${i}` ? 'tts-highlight' : ''}>{translate(choice)}</li>)}
                                                 </ul>
                                                 <div id={`model-sim-${module.id}-a${index}`} className={`prose prose-sm dark:prose-invert max-w-none mt-2 font-semibold text-emerald-800 dark:text-emerald-300 ${currentlySpokenId === `model-sim-${module.id}-a${index}` ? 'tts-highlight' : ''}`}>
                                                    <strong >{translate('Correct Answer')}:</strong>

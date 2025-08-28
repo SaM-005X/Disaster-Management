@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { User, Institution } from '../types';
+import type { User, Institution, AvatarStyle } from '../types';
 import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, TTSText } from '../contexts/TTSContext';
@@ -13,6 +13,7 @@ import { CameraIcon } from './icons/CameraIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import VoiceInputButton from './VoiceInputButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import Avatar from './Avatar';
 
 interface ProfileProps {
   user: User;
@@ -21,6 +22,8 @@ interface ProfileProps {
   onSave: (updatedUser: User, updatedInstitution: Institution) => void;
   backButtonText?: string;
 }
+
+const AVATAR_STYLES: AvatarStyle[] = ['default', 'teal', 'amber', 'rose'];
 
 const InfoRow: React.FC<{
     icon: React.ReactNode;
@@ -151,6 +154,10 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
                 return { ...prev, avatarUrl: newAvatarUrl };
             });
         }
+    };
+    
+    const handleAvatarStyleChange = (style: AvatarStyle) => {
+        setEditableUser(prev => ({...prev, avatarStyle: style }));
     };
 
     const handleUserChange = (name: string, value: string) => {
@@ -368,6 +375,35 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
                         </div>
                     </div>
                 </div>
+                {isEditing && (
+                    <div className="border-t border-gray-200 dark:border-gray-700">
+                        <div className="p-6 md:p-8">
+                            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
+                                {translate('Avatar Customization')}
+                            </h2>
+                            <div className="flex flex-wrap gap-4">
+                                {AVATAR_STYLES.map(style => {
+                                    const isSelected = (editableUser.avatarStyle || 'default') === style;
+                                    return (
+                                        <div key={style} className="text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleAvatarStyleChange(style)}
+                                                className={`p-1 rounded-full transition-all duration-200 ${isSelected ? 'ring-2 ring-offset-2 ring-teal-500 dark:ring-offset-gray-800' : 'ring-2 ring-transparent'}`}
+                                                aria-label={`${translate('Select')} ${style} ${translate('style')}`}
+                                            >
+                                                <Avatar mood="happy" style={style} className="h-16 w-16" />
+                                            </button>
+                                            <p className={`mt-2 text-sm font-medium capitalize ${isSelected ? 'text-teal-600 dark:text-teal-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                                                {translate(style)}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

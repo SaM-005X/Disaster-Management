@@ -12,6 +12,7 @@ import { PlayIcon } from './icons/PlayIcon';
 import { PauseIcon } from './icons/PauseIcon';
 import { StopIcon } from './icons/StopIcon';
 import { MenuIcon } from './icons/MenuIcon';
+import ConnectivityStatusIndicator from './ConnectivityStatusIndicator';
 
 interface HeaderProps {
   user: User;
@@ -65,6 +66,7 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
           </h1>
         </div>
         <div className="flex items-center space-x-1 sm:space-x-2">
+          <ConnectivityStatusIndicator />
           {isSupported && (
             <div className="flex items-center p-1 bg-gray-100 dark:bg-gray-800 rounded-full">
               <button

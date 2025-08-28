@@ -1,12 +1,14 @@
 import React from 'react';
 import type { AvatarMood } from '../App';
+import type { AvatarStyle } from '../types';
 
 interface AvatarProps {
   mood: AvatarMood;
   className?: string;
+  style?: AvatarStyle;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10' }) => {
+const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10', style = 'default' }) => {
   const eyePaths = {
     neutral: "M 10 16 Q 12 17 14 16 M 20 16 Q 22 17 24 16", // Gentle curve
     happy: "M 10 16 Q 12 14 14 16 M 20 16 Q 22 14 24 16", // Upward curve (smile)
@@ -14,17 +16,48 @@ const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10' }) => {
     encouraging: "M 10 15 C 11 16, 13 16, 14 15 M 20 15 C 21 16, 23 16, 24 15", // Softer, wider eyes
   };
 
+  const gradientId = `robot-gradient-${style}`;
+  const darkGradientId = `robot-gradient-dark-${style}`;
+
   return (
     <div className={className}>
       <svg viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="robot-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style={{ stopColor: 'rgb(229 231 235)', stopOpacity: 1 }} />
-            <stop offset="100%" style={{ stopColor: 'rgb(107 114 128)', stopOpacity: 1 }} />
+          {/* Default Style */}
+          <linearGradient id="robot-gradient-default" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style={{ stopColor: 'rgb(229 231 235)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgb(107 114 128)' }} />
           </linearGradient>
-          <linearGradient id="robot-gradient-dark" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style={{ stopColor: 'rgb(75 85 99)', stopOpacity: 1 }} />
-            <stop offset="100%" style={{ stopColor: 'rgb(31 41 55)', stopOpacity: 1 }} />
+          <linearGradient id="robot-gradient-dark-default" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style={{ stopColor: 'rgb(75 85 99)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgb(31 41 55)' }} />
+          </linearGradient>
+          {/* Teal Style */}
+          <linearGradient id="robot-gradient-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ccfbf1" />
+            <stop offset="100%" stopColor="#14b8a6" />
+          </linearGradient>
+          <linearGradient id="robot-gradient-dark-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#0d9488" />
+            <stop offset="100%" stopColor="#115e59" />
+          </linearGradient>
+          {/* Amber Style */}
+          <linearGradient id="robot-gradient-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fef3c7" />
+            <stop offset="100%" stopColor="#f59e0b" />
+          </linearGradient>
+          <linearGradient id="robot-gradient-dark-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#92400e" />
+          </linearGradient>
+          {/* Rose Style */}
+          <linearGradient id="robot-gradient-rose" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffe4e6" />
+            <stop offset="100%" stopColor="#f43f5e" />
+          </linearGradient>
+          <linearGradient id="robot-gradient-dark-rose" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#e11d48" />
+            <stop offset="100%" stopColor="#9f1239" />
           </linearGradient>
         </defs>
         
@@ -36,7 +69,7 @@ const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10' }) => {
         )}
 
         {/* Head */}
-        <path d="M 5 10 C 5 5, 29 5, 29 10 V 26 C 29 31, 5 31, 5 26 Z" className="fill-[url(#robot-gradient)] dark:fill-[url(#robot-gradient-dark)]" />
+        <path d="M 5 10 C 5 5, 29 5, 29 10 V 26 C 29 31, 5 31, 5 26 Z" className={`fill-[url(#${gradientId})] dark:fill-[url(#${darkGradientId})]`} />
         
         {/* Faceplate */}
         <rect x="7" y="12" width="20" height="9" rx="2" className="fill-gray-200 dark:fill-gray-700" />

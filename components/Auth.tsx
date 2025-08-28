@@ -3,7 +3,7 @@ import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import type { User } from '../types';
 import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
-import { useTTS } from '../contexts/TTSContext';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 interface AuthProps {
   onLoginSuccess: (user: User, isNewUser?: boolean) => void;
@@ -27,7 +27,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, mockUsers }) => {
   const classLabel = selectedRole === UserRole.STUDENT ? translate('Class') : translate('Department / Subject');
 
   useEffect(() => {
-    const textsToRead = [
+    const textsToRead: TTSText[] = [
       { id: 'auth-title', text: titleText },
       { id: 'auth-subtitle', text: subtitleText },
       { id: 'auth-username-label', text: usernameLabel },
@@ -37,7 +37,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, mockUsers }) => {
         textsToRead.push({ id: 'auth-class-label', text: classLabel });
     }
     registerTexts(textsToRead);
-  }, [isLoginView, titleText, subtitleText, usernameLabel, passwordLabel, classLabel, registerTexts, translate]);
+  }, [isLoginView, titleText, subtitleText, usernameLabel, passwordLabel, classLabel, registerTexts]);
 
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -202,7 +202,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, mockUsers }) => {
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           {isLoginView ? translate("Don't have an account?") : translate('Already have an account?')}
           <button onClick={toggleView} className="font-medium text-teal-600 hover:text-teal-500 dark:text-teal-400 dark:hover:text-teal-300 ml-1">
-            {isLoginView ? translate('Sign Up') : translate('Sign Up')}
+            {isLoginView ? translate('Sign Up') : translate('Sign In')}
           </button>
         </p>
       </div>

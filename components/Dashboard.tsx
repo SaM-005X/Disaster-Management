@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { LearningModule, QuizScore } from '../types';
 import ModuleCard from './ModuleCard';
 import { useTranslate } from '../contexts/TranslationContext';
-import { useTTS } from '../contexts/TTSContext';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 interface DashboardProps {
   modules: LearningModule[];
@@ -13,10 +13,32 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ modules, onSelectModule, onStartQuiz, quizScores }) => {
   const { translate } = useTranslate();
-  const { currentlySpokenId } = useTTS();
+  const { registerTexts, currentlySpokenId } = useTTS();
 
   const headerText = translate('Learning Modules');
   const subHeaderText = translate('Select a module to learn about disaster preparedness.');
+
+  useEffect(() => {
+    const textsToRead: TTSText[] = [
+      { id: 'dashboard-header', text: headerText },
+      { id: 'dashboard-subheader', text: subHeaderText },
+    ];
+    modules.forEach(module => {
+      textsToRead.push({ id: `module-${module.id}-title`, text: translate(module.title) });
+      textsToRead.push({ id: `module-${module.id}-hazard`, text: translate(module.hazardType) });
+      textsToRead.push({ id: `module-${module.id}-desc`, text: translate(module.description) });
+      const score = quizScores[module.quizId];
+      if (score) {
+        const progress = 100;
+        textsToRead.push({ id: `module-${module.id}-progress-label`, text: translate('Progress') });
+        textsToRead.push({ id: `module-${module.id}-progress-status`, text: `${progress}% ${translate('Complete')}` });
+        textsToRead.push({ id: `module-${module.id}-score`, text: `${translate('Quiz Score')}: ${score.score}/${score.totalQuestions}` });
+      }
+      textsToRead.push({ id: `module-${module.id}-read-btn`, text: translate('Read Module') });
+      textsToRead.push({ id: `module-${module.id}-quiz-btn`, text: translate('Take Quiz') });
+    });
+    registerTexts(textsToRead);
+  }, [modules, quizScores, registerTexts, translate, headerText, subHeaderText]);
 
   return (
     <div>

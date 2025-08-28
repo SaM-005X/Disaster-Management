@@ -29,80 +29,77 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [currentlySpokenId, setCurrentlySpokenId] = useState<string | null>(null);
 
     const synthRef = useRef<SpeechSynthesis | null>(null);
-    const stopMarker = useRef(false);
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     
-    // Refs to hold the latest state values for use in stable callbacks
     const stateRef = useRef(state);
     useEffect(() => { stateRef.current = state; }, [state]);
     const queueRef = useRef(queue);
     useEffect(() => { queueRef.current = queue; }, [queue]);
+    const currentIndexRef = useRef(currentIndex);
+    useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
 
-
-    useEffect(() => {
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            setIsSupported(true);
-            synthRef.current = window.speechSynthesis;
-            return () => synthRef.current?.cancel();
-        }
-    }, []);
-    
-    // This effect acts as a watchdog. If the synth gets stuck in a speaking state,
-    // this will cancel it to allow the system to recover.
-    useEffect(() => {
-        const handleStuckSynth = () => {
-            if (synthRef.current?.speaking && state === 'playing') {
-                console.warn('TTS seems to be stuck. Cancelling speech to recover.');
-                synthRef.current.cancel();
-            }
-        };
-        const interval = setInterval(handleStuckSynth, 5000);
-        return () => clearInterval(interval);
-    }, [state]);
-
-    const playQueue = useCallback((index: number) => {
-        const currentQueue = queueRef.current;
-        if (!isSupported || !synthRef.current || index >= currentQueue.length) {
+    const playUtterance = useCallback((index: number) => {
+        if (!isSupported || !synthRef.current || index >= queueRef.current.length) {
             setState('idle');
             setCurrentIndex(0);
             setCurrentlySpokenId(null);
             return;
         }
 
-        stopMarker.current = false;
+        synthRef.current.cancel(); 
 
-        const utterance = new SpeechSynthesisUtterance(currentQueue[index].text);
+        const textInfo = queueRef.current[index];
+        const utterance = new SpeechSynthesisUtterance(textInfo.text);
+        utteranceRef.current = utterance;
+
+        utterance.onstart = () => {
+            setCurrentlySpokenId(textInfo.id);
+        };
         
-        utterance.onstart = () => setCurrentlySpokenId(currentQueue[index].id);
-
         utterance.onend = () => {
-            if (stopMarker.current) return;
-            const nextIndex = index + 1;
-            setCurrentIndex(nextIndex);
-            playQueue(nextIndex);
+            if (stateRef.current === 'playing') {
+                const nextIndex = index + 1;
+                if (nextIndex < queueRef.current.length) {
+                    setCurrentIndex(nextIndex);
+                } else {
+                    setState('idle');
+                    setCurrentIndex(0);
+                    setCurrentlySpokenId(null);
+                }
+            }
         };
 
-        utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
-            // 'interrupted' is a normal event when speech is cancelled manually.
-            // We should not log it as an error or try to continue the queue.
+        utterance.onerror = (event) => {
+            // The 'interrupted' error is expected when we manually cancel speech.
+            // We can safely ignore it and prevent it from being logged as an error.
             if (event.error === 'interrupted') {
                 return;
             }
             console.error(`Speech synthesis error: ${event.error}`);
-            // If another error occurs, try to continue with the next item.
-            if (stopMarker.current) return;
-            const nextIndex = index + 1;
-            setCurrentIndex(nextIndex);
-            playQueue(nextIndex);
+            if (stateRef.current === 'playing') {
+                const nextIndex = index + 1;
+                 if (nextIndex < queueRef.current.length) {
+                    setCurrentIndex(nextIndex);
+                } else {
+                    setState('idle');
+                    setCurrentIndex(0);
+                    setCurrentlySpokenId(null);
+                }
+            }
         };
 
         synthRef.current.speak(utterance);
     }, [isSupported]);
+    
+    useEffect(() => {
+        if (state === 'playing') {
+            playUtterance(currentIndex);
+        }
+    }, [currentIndex, state, playUtterance]);
 
 
     const stopReadAloud = useCallback(() => {
         if (!isSupported || !synthRef.current) return;
-
-        stopMarker.current = true;
         synthRef.current.cancel();
         setState('idle');
         setCurrentIndex(0);
@@ -112,36 +109,31 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const toggleReadAloud = useCallback(() => {
         if (!isSupported || !synthRef.current || queueRef.current.length === 0) return;
 
-        switch (stateRef.current) {
-            case 'idle':
-                setState('playing');
-                playQueue(currentIndex);
-                break;
-            case 'playing':
-                synthRef.current.pause();
-                setState('paused');
-                break;
-            case 'paused':
-                synthRef.current.resume();
-                setState('playing');
-                break;
+        const currentState = stateRef.current;
+
+        if (currentState === 'playing') {
+            synthRef.current.pause();
+            setState('paused');
+        } else if (currentState === 'paused') {
+            synthRef.current.resume();
+            setState('playing');
+        } else { // idle
+            setState('playing');
         }
-    }, [isSupported, currentIndex, playQueue]);
+    }, [isSupported]);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            setIsSupported(true);
+            synthRef.current = window.speechSynthesis;
+            synthRef.current.cancel();
+            return () => synthRef.current?.cancel();
+        }
+    }, []);
 
     const registerTexts = useCallback((texts: TTSText[]) => {
-        const currentQueue = queueRef.current;
-        // Optimization: if the queue is identical, do nothing.
-        if (
-            texts.length === currentQueue.length &&
-            texts.every((text, index) => text.id === currentQueue[index].id && text.text === currentQueue[index].text)
-        ) {
-            return;
-        }
-        
-        // When the page content changes, always stop any current speech and reset the queue.
-        // This prevents race conditions and provides a predictable user experience.
         stopReadAloud();
-        setQueue(texts);
+        setQueue(texts.filter(t => t.text && t.text.trim() !== ''));
     }, [stopReadAloud]);
     
     const clearQueue = useCallback(() => {
@@ -149,7 +141,7 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setQueue([]);
     }, [stopReadAloud]);
 
-    const isPlaying = state !== 'idle';
+    const isPlaying = state === 'playing' || state === 'paused';
     const isPaused = state === 'paused';
 
     return (

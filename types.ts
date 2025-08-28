@@ -34,6 +34,8 @@ export interface Institution {
   phoneNumber: string;
 }
 
+export type AvatarStyle = 'default' | 'teal' | 'amber' | 'rose';
+
 export interface User {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ export interface User {
   class: string;
   avatarUrl: string;
   rollNumber?: string;
+  avatarStyle?: AvatarStyle;
 }
 
 export interface QuizQuestion {
@@ -104,4 +107,37 @@ export interface StudentProgress {
   quizScores: Record<string, QuizScore>; // quizId -> score
   labScores: Record<string, LabScore>;   // moduleId -> score
   timeSpent: number; // in hours
+}
+
+export interface ForecastDay {
+  day: string;
+  date: string;
+  highTemp: number;
+  lowTemp: number;
+  condition: string;
+  windSpeed: number; // in km/h
+  windDirection: string; // e.g., 'NW', 'S', 'E'
+  precipitationChance: number; // in %
+}
+
+export interface ReliefCamp {
+    name: string;
+    type: string;
+    address: string;
+    contact: string;
+    website?: string;
+    latitude: number;
+    longitude: number;
+}
+
+export interface NewsArticle {
+  title: string;
+  summary: string;
+  imageUrl: string;
+  source: string; // e.g., "Reuters"
+  link: string; // URL to the full article
+  isLocal?: boolean;
+  status?: 'pending' | 'approved';
+  type?: 'latest' | 'previous';
+  isSummarizing?: boolean;
 }

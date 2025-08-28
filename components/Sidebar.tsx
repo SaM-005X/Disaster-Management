@@ -8,9 +8,11 @@ import { HomeIcon } from './icons/HomeIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
 import { KeyIcon } from './icons/KeyIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { WindIcon } from './icons/WindIcon';
 import { XIcon } from './icons/XIcon';
+import { NewspaperIcon } from './icons/NewspaperIcon';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news';
 
 interface SidebarProps {
   currentPage: Page;
@@ -83,6 +85,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               label={translate('Lab / Simulation')}
               isActive={currentPage === 'lab' && labView !== 'solutions'}
               onClick={() => handleNavigation('lab')}
+            />
+          </li>
+          <li>
+            <NavLink
+              icon={<WindIcon className="h-6 w-6" />}
+              label={translate('Meteorology')}
+              isActive={currentPage === 'meteo'}
+              onClick={() => handleNavigation('meteo')}
+            />
+          </li>
+           <li>
+            <NavLink
+              icon={<NewspaperIcon className="h-6 w-6" />}
+              label={translate('News Portal')}
+              isActive={currentPage === 'news'}
+              onClick={() => handleNavigation('news')}
             />
           </li>
           <li>

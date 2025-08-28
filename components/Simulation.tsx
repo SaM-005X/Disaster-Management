@@ -13,6 +13,7 @@ import { PauseIcon } from './icons/PauseIcon';
 import { StopIcon } from './icons/StopIcon';
 import { LightbulbIcon } from './icons/LightbulbIcon';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { handleApiError } from '../services/apiErrorHandler';
 
 interface SimulationProps {
   module: LearningModule;
@@ -115,8 +116,9 @@ const Simulation: React.FC<SimulationProps> = ({ module, onComplete, onBack }) =
 
                 setSteps([{ scenario: scenarioContent }]);
             } catch (error) {
-                console.error("Failed to initialize simulation:", error);
-                setSteps([{ scenario: { text: translate("Error: Could not start the simulation. Please try again later."), type: 'short-answer' } }]);
+                const errorMessage = handleApiError(error);
+                console.error("Failed to initialize simulation:", errorMessage);
+                setSteps([{ scenario: { text: `${translate("Error: Could not start the simulation.")} ${errorMessage}`, type: 'short-answer' } }]);
             } finally {
                 setIsLoading(false);
             }
@@ -241,8 +243,9 @@ MODULE CONTENT: ${moduleContext}
             setHint(hintText);
             setHintUsed(true);
         } catch (error) {
-            console.error("Error fetching hint:", error);
-            setHint(translate("Sorry, I couldn't get a hint right now."));
+            const errorMessage = handleApiError(error);
+            console.error("Error fetching hint:", errorMessage);
+            setHint(`${translate("Sorry, I couldn't get a hint right now.")} (${errorMessage})`);
         } finally {
             setIsHintLoading(false);
         }
@@ -330,9 +333,10 @@ Respond ONLY with a valid JSON object in the format: { "text": "...", "choices":
                 setIsFinished(true);
             }
         } catch (error) {
-            console.error("Error evaluating response:", error);
+            const errorMessage = handleApiError(error);
+            console.error("Error evaluating response:", errorMessage);
             const finalSteps = [...steps];
-            finalSteps[currentStepIndex].feedback = translate("Sorry, there was an error evaluating your response.");
+            finalSteps[currentStepIndex].feedback = `${translate("Sorry, there was an error evaluating your response.")} ${errorMessage}`;
             finalSteps[currentStepIndex].score = 0;
             setSteps(finalSteps);
             setIsFinished(true);

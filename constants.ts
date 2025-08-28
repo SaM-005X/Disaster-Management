@@ -18,6 +18,7 @@ export const MOCK_USERS: User[] = [
     class: 'Grade 8, Section A',
     avatarUrl: 'https://picsum.photos/seed/aarav/100/100',
     rollNumber: '8A-01',
+    avatarStyle: 'default',
   },
   {
     id: 'user-2',
@@ -26,12 +27,13 @@ export const MOCK_USERS: User[] = [
     institutionId: 'inst-1',
     class: 'Science Department',
     avatarUrl: 'https://picsum.photos/seed/priya/100/100',
+    avatarStyle: 'teal',
   },
-  { id: 'user-3', name: 'Rohan Mehta', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section A', avatarUrl: 'https://picsum.photos/seed/rohan/100/100', rollNumber: '8A-02' },
-  { id: 'user-4', name: 'Sanya Gupta', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section A', avatarUrl: 'https://picsum.photos/seed/sanya/100/100', rollNumber: '8A-03' },
-  { id: 'user-5', name: 'Kabir Verma', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/kabir/100/100', rollNumber: '8B-01' },
-  { id: 'user-6', name: 'Diya Patel', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/diya/100/100', rollNumber: '8B-02' },
-  { id: 'user-7', name: 'Ishaan Reddy', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/ishaan/100/100', rollNumber: '8B-03' },
+  { id: 'user-3', name: 'Rohan Mehta', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section A', avatarUrl: 'https://picsum.photos/seed/rohan/100/100', rollNumber: '8A-02', avatarStyle: 'amber' },
+  { id: 'user-4', name: 'Sanya Gupta', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section A', avatarUrl: 'https://picsum.photos/seed/sanya/100/100', rollNumber: '8A-03', avatarStyle: 'rose' },
+  { id: 'user-5', name: 'Kabir Verma', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/kabir/100/100', rollNumber: '8B-01', avatarStyle: 'default' },
+  { id: 'user-6', name: 'Diya Patel', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/diya/100/100', rollNumber: '8B-02', avatarStyle: 'teal' },
+  { id: 'user-7', name: 'Ishaan Reddy', role: UserRole.STUDENT, institutionId: 'inst-1', class: 'Grade 8, Section B', avatarUrl: 'https://picsum.photos/seed/ishaan/100/100', rollNumber: '8B-03', avatarStyle: 'default' },
 ];
 
 

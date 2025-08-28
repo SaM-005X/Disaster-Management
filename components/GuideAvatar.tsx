@@ -3,12 +3,14 @@ import Avatar from './Avatar';
 import type { AvatarMood } from '../App';
 import { XIcon } from './icons/XIcon';
 import { useTranslate } from '../contexts/TranslationContext';
+import type { AvatarStyle } from '../types';
 
 interface GuideAvatarProps {
     message: string;
     mood: AvatarMood;
     isOpen: boolean;
     onClose: () => void;
+    avatarStyle: AvatarStyle;
 }
 
 /**
@@ -33,7 +35,7 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
 };
 
 
-const GuideAvatar: React.FC<GuideAvatarProps> = ({ message, mood, isOpen, onClose }) => {
+const GuideAvatar: React.FC<GuideAvatarProps> = ({ message, mood, isOpen, onClose, avatarStyle }) => {
     const [displayedMessage, setDisplayedMessage] = useState(message);
     const [isFading, setIsFading] = useState(false);
     const { translate } = useTranslate();
@@ -55,7 +57,7 @@ const GuideAvatar: React.FC<GuideAvatarProps> = ({ message, mood, isOpen, onClos
 
     return (
         <div className="fixed bottom-6 left-6 z-40 flex items-end gap-3 animate-fade-in-up">
-            <Avatar mood={mood} className="h-20 w-20 flex-shrink-0" />
+            <Avatar mood={mood} style={avatarStyle} className="h-20 w-20 flex-shrink-0" />
             <div className="relative mb-2 max-w-xs bg-white dark:bg-gray-800 rounded-2xl rounded-bl-none shadow-lg p-4 ring-1 ring-gray-200 dark:ring-gray-700">
                  <button 
                     onClick={onClose} 

@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import type { User, LearningModule, StudentProgress } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 import LineChart from './charts/LineChart';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
@@ -14,6 +15,7 @@ interface StudentProgressViewProps {
 
 const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules, progress }) => {
     const { translate } = useTranslate();
+    const { registerTexts, currentlySpokenId } = useTTS();
 
     const completedModulesCount = useMemo(() => {
         return modules.filter(module => {
@@ -25,7 +27,7 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
 
     const chartData = useMemo(() => {
         if (completedModulesCount === 0) {
-            return [{ x: 0, y: 0 }, { x: progress.timeSpent, y: 0 }];
+            return [{ x: 0, y: 0 }, { x: progress.timeSpent || 1, y: 0 }];
         }
         const points = [{ x: 0, y: 0 }];
         const timePerModule = progress.timeSpent / completedModulesCount;
@@ -37,16 +39,37 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
         }
         return points;
     }, [completedModulesCount, progress.timeSpent]);
+
+    useEffect(() => {
+        const textsToRead: TTSText[] = [];
+        textsToRead.push({ id: 'progress-student-header', text: translate('My Progress') });
+        textsToRead.push({ id: 'progress-student-subheader', text: translate('Track your journey to becoming Disaster Ready.') });
+        textsToRead.push({ id: 'progress-student-chart-header', text: translate('Learning Pace') });
+        textsToRead.push({ id: 'progress-student-breakdown-header', text: translate('Detailed Progress Breakdown') });
+        
+        modules.forEach(module => {
+            const quizScore = progress.quizScores[module.quizId];
+            const labScore = progress.labScores[module.id];
+            
+            textsToRead.push({ id: `progress-module-${module.id}-title`, text: translate(module.title) });
+            textsToRead.push({ id: `progress-module-${module.id}-quiz-label`, text: translate('Learning Module & Quiz') });
+            textsToRead.push({ id: `progress-module-${module.id}-quiz-score`, text: quizScore ? `${translate('Score')}: ${quizScore.score} ${translate('out of')} ${quizScore.totalQuestions}` : translate('Not yet completed') });
+            
+            textsToRead.push({ id: `progress-module-${module.id}-lab-label`, text: translate('Lab / Simulation') });
+            textsToRead.push({ id: `progress-module-${module.id}-lab-score`, text: labScore ? `${translate('Score')}: ${labScore.score}%` : translate('Not yet completed') });
+        });
+        registerTexts(textsToRead);
+    }, [modules, progress, registerTexts, translate]);
     
     return (
         <div>
             <div className="mb-8">
-                <h1 className="text-4xl font-extrabold text-gray-800 dark:text-white">{translate('My Progress')}</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">{translate('Track your journey to becoming Disaster Ready.')}</p>
+                <h1 id="progress-student-header" className={`text-4xl font-extrabold text-gray-800 dark:text-white ${currentlySpokenId === 'progress-student-header' ? 'tts-highlight' : ''}`}>{translate('My Progress')}</h1>
+                <p id="progress-student-subheader" className={`text-gray-600 dark:text-gray-400 mt-2 ${currentlySpokenId === 'progress-student-subheader' ? 'tts-highlight' : ''}`}>{translate('Track your journey to becoming Disaster Ready.')}</p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">{translate('Learning Pace')}</h2>
+                <h2 id="progress-student-chart-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'progress-student-chart-header' ? 'tts-highlight' : ''}`}>{translate('Learning Pace')}</h2>
                 <div className="h-64">
                     <LineChart 
                         data={chartData} 
@@ -58,7 +81,7 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md">
                  <div className="p-6">
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{translate('Detailed Progress Breakdown')}</h2>
+                    <h2 id="progress-student-breakdown-header" className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'progress-student-breakdown-header' ? 'tts-highlight' : ''}`}>{translate('Detailed Progress Breakdown')}</h2>
                 </div>
                 <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     {modules.map(module => {
@@ -69,7 +92,7 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
 
                         return (
                              <div key={module.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{translate(module.title)}</h3>
+                                <h3 id={`progress-module-${module.id}-title`} className={`text-xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === `progress-module-${module.id}-title` ? 'tts-highlight' : ''}`}>{translate(module.title)}</h3>
                                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Quiz Progress */}
                                     <div className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -77,16 +100,16 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
                                             <BookOpenIcon className="h-6 w-6" />
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-gray-800 dark:text-gray-200">{translate('Learning Module & Quiz')}</p>
+                                            <p id={`progress-module-${module.id}-quiz-label`} className={`font-semibold text-gray-800 dark:text-gray-200 ${currentlySpokenId === `progress-module-${module.id}-quiz-label` ? 'tts-highlight' : ''}`}>{translate('Learning Module & Quiz')}</p>
                                             {quizScore ? (
-                                                <div className="flex items-center gap-2 text-sm">
+                                                <div id={`progress-module-${module.id}-quiz-score`} className={`flex items-center gap-2 text-sm ${currentlySpokenId === `progress-module-${module.id}-quiz-score` ? 'tts-highlight' : ''}`}>
                                                     <CheckCircleIcon className={`h-4 w-4 ${isQuizPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
                                                     <span className={`${isQuizPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
                                                         {translate('Score')}: {quizScore.score}/{quizScore.totalQuestions}
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">{translate('Not yet completed')}</p>
+                                                <p id={`progress-module-${module.id}-quiz-score`} className={`text-sm text-gray-500 dark:text-gray-400 ${currentlySpokenId === `progress-module-${module.id}-quiz-score` ? 'tts-highlight' : ''}`}>{translate('Not yet completed')}</p>
                                             )}
                                         </div>
                                     </div>
@@ -96,16 +119,16 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
                                             <BeakerIcon className="h-6 w-6" />
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-gray-800 dark:text-gray-200">{translate('Lab / Simulation')}</p>
+                                            <p id={`progress-module-${module.id}-lab-label`} className={`font-semibold text-gray-800 dark:text-gray-200 ${currentlySpokenId === `progress-module-${module.id}-lab-label` ? 'tts-highlight' : ''}`}>{translate('Lab / Simulation')}</p>
                                             {labScore ? (
-                                                 <div className="flex items-center gap-2 text-sm">
+                                                 <div id={`progress-module-${module.id}-lab-score`} className={`flex items-center gap-2 text-sm ${currentlySpokenId === `progress-module-${module.id}-lab-score` ? 'tts-highlight' : ''}`}>
                                                     <CheckCircleIcon className={`h-4 w-4 ${isLabPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
                                                     <span className={`${isLabPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
                                                         {translate('Score')}: {labScore.score}%
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">{translate('Not yet completed')}</p>
+                                                <p id={`progress-module-${module.id}-lab-score`} className={`text-sm text-gray-500 dark:text-gray-400 ${currentlySpokenId === `progress-module-${module.id}-lab-score` ? 'tts-highlight' : ''}`}>{translate('Not yet completed')}</p>
                                             )}
                                         </div>
                                     </div>

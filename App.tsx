@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { MOCK_USERS, MODULES, QUIZZES, INSTITUTIONS, MOCK_STUDENT_PROGRESS } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, Institution, LabScore, StudentProgress } from './types';
+import type { LearningModule, Quiz, User, QuizScore, Institution, LabScore, StudentProgress, AvatarStyle } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -24,10 +24,12 @@ import Footer from './components/Footer';
 import AboutUs from './components/AboutUs';
 import ProgressTracker from './components/ProgressTracker';
 import AlertsBanner from './components/AlertsBanner';
+import WindyMap from './components/WindyMap';
+import News from './components/News';
 import { useTranslate } from './contexts/TranslationContext';
-import { useTTS, type TTSText } from './contexts/TTSContext';
+import OfflineStatusToast from './components/OfflineStatusToast';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
 export type LabView = 'lab_dashboard' | 'simulation' | 'final_certificate' | 'solutions';
 type Theme = 'light' | 'dark';
@@ -80,10 +82,64 @@ const App: React.FC = () => {
   const [avatarMessage, setAvatarMessage] = useState('');
   const [avatarMood, setAvatarMood] = useState<AvatarMood>('happy');
   const [isAvatarVisible, setIsAvatarVisible] = useState(true);
+  const [avatarStyle, setAvatarStyle] = useState<AvatarStyle>('default');
+
+  // Offline/PWA State
+  const [showOfflineToast, setShowOfflineToast] = useState(false);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
+  const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   // Hooks
   const { translate } = useTranslate();
-  const { registerTexts } = useTTS();
+
+  // Effect for Service Worker Registration and Updates
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          setServiceWorkerRegistration(registration);
+
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            // New service worker has taken control, safe to reload.
+            window.location.reload();
+          });
+
+          // A new service worker is waiting to be activated.
+          if (registration.waiting) {
+            setShowUpdateToast(true);
+          }
+          
+          // A new service worker has been found and is installing.
+          registration.onupdatefound = () => {
+            const installingWorker = registration.installing;
+            if (installingWorker) {
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === 'installed') {
+                  // If there's an existing SW, an update is ready. Otherwise, it's the first install.
+                  if (navigator.serviceWorker.controller) {
+                    setShowUpdateToast(true);
+                  } else {
+                    setShowOfflineToast(true);
+                    setTimeout(() => setShowOfflineToast(false), 5000);
+                  }
+                }
+              };
+            }
+          };
+        }).catch(error => {
+          console.error('Service Worker registration failed:', error);
+        });
+      });
+    }
+  }, []);
+
+  const handleUpdate = () => {
+    const worker = serviceWorkerRegistration?.waiting;
+    if (worker) {
+      worker.postMessage({ type: 'SKIP_WAITING' });
+      setShowUpdateToast(false);
+    }
+  };
 
   // Effect to check if alerts banner was dismissed in the current session
   useEffect(() => {
@@ -112,10 +168,9 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
   
-  // Effect to manage avatar messages and TTS registration
+  // Effect to manage avatar messages
   useEffect(() => {
     if (!isAuthenticated || !currentUser) {
-      registerTexts([]); // Clear texts on logout
       return;
     }
     
@@ -153,6 +208,12 @@ const App: React.FC = () => {
       } else if (currentPage === 'distress') {
         setAvatarMood('encouraging');
         setAvatarMessage(translate(`Stay calm, **${currentUser.name}**. Fill out this form accurately to get help quickly.`));
+      } else if (currentPage === 'meteo') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('Here you can see live weather patterns. This is crucial for tracking large-scale events like cyclones.'));
+      } else if (currentPage === 'news') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('Stay informed with the latest global disaster and weather news.'));
       } else {
          switch (dashboardView) {
             case 'dashboard':
@@ -179,99 +240,8 @@ const App: React.FC = () => {
       }
     }, 300);
     
-    // --- TTS Registration Logic ---
-
-    // For Dashboard View
-    if (currentPage === 'dashboard' && dashboardView === 'dashboard') {
-      const headerText = translate('Learning Modules');
-      const subHeaderText = translate('Select a module to learn about disaster preparedness.');
-
-      const textsToRead: TTSText[] = [
-        { id: 'dashboard-header', text: headerText },
-        { id: 'dashboard-subheader', text: subHeaderText },
-      ];
-
-      MODULES.forEach(module => {
-        textsToRead.push({ id: `module-${module.id}-title`, text: translate(module.title) });
-        textsToRead.push({ id: `module-${module.id}-hazard`, text: translate(module.hazardType) });
-        textsToRead.push({ id: `module-${module.id}-desc`, text: translate(module.description) });
-        
-        const score = quizScores[module.quizId];
-        if (score) {
-          const progress = 100;
-          textsToRead.push({ id: `module-${module.id}-progress-label`, text: translate('Progress') });
-          textsToRead.push({ id: `module-${module.id}-progress-status`, text: `${progress}% ${translate('Complete')}` });
-          textsToRead.push({ id: `module-${module.id}-score`, text: `${translate('Quiz Score')}: ${score.score}/${score.totalQuestions}` });
-        }
-        
-        textsToRead.push({ id: `module-${module.id}-read-btn`, text: translate('Read Module') });
-        textsToRead.push({ id: `module-${module.id}-quiz-btn`, text: translate('Take Quiz') });
-      });
-
-      registerTexts(textsToRead);
-    }
-    // For Progress Tracker View
-    else if (currentPage === 'progress') {
-        const textsToRead: TTSText[] = [];
-
-        if (currentUser.role === UserRole.TEACHER) {
-            textsToRead.push({ id: 'progress-teacher-header', text: translate('Classroom Analytics') });
-            textsToRead.push({ id: 'progress-teacher-subheader', text: translate('Monitor student progress, completion rates, and certification status.') });
-            textsToRead.push({ id: 'progress-teacher-chart-header', text: translate('Class Certification Progress (%)') });
-            textsToRead.push({ id: 'progress-teacher-roster-header', text: translate('Student Roster & Progress') });
-            
-            const studentsForTeacher = allUsers.filter(u => u.role === UserRole.STUDENT && u.institutionId === currentUser?.institutionId);
-            
-            if (studentsForTeacher.length > 0) {
-                textsToRead.push({ id: 'roster-th-class', text: translate('Class/Grade') });
-                textsToRead.push({ id: 'roster-th-name', text: translate('Student Name') });
-                textsToRead.push({ id: 'roster-th-roll', text: translate('Roll No.') });
-                textsToRead.push({ id: 'roster-th-completion', text: translate('Module Completion') });
-                textsToRead.push({ id: 'roster-th-cert', text: translate('Certification') });
-                
-                studentsForTeacher.forEach(student => {
-                    const progress = allStudentProgress[student.id] || { quizScores: {}, labScores: {} };
-                    const completedQuizzes = Object.keys(progress.quizScores).length;
-                    const completedLabs = Object.keys(progress.labScores).length;
-                    const totalTasks = MODULES.length * 2;
-                    const completionPercentage = totalTasks > 0 ? Math.round(((completedQuizzes + completedLabs) / totalTasks) * 100) : 0;
-                    
-                    textsToRead.push({ id: `roster-student-${student.id}-class`, text: student.class });
-                    textsToRead.push({ id: `roster-student-${student.id}-name`, text: student.name });
-                    textsToRead.push({ id: `roster-student-${student.id}-roll`, text: student.rollNumber || translate('N/A') });
-                    textsToRead.push({ id: `roster-student-${student.id}-completion`, text: `${completionPercentage} percent` });
-                });
-            } else {
-                textsToRead.push({ id: 'roster-no-students', text: translate('No students have been added to your roster yet.') });
-                textsToRead.push({ id: 'roster-no-students-cta', text: translate('Click the "Add Student" button to get started.') });
-            }
-        } else if (currentUser.role === UserRole.STUDENT && studentProgress) {
-            textsToRead.push({ id: 'progress-student-header', text: translate('My Progress') });
-            textsToRead.push({ id: 'progress-student-subheader', text: translate('Track your journey to becoming Disaster Ready.') });
-            textsToRead.push({ id: 'progress-student-chart-header', text: translate('Learning Pace') });
-            textsToRead.push({ id: 'progress-student-breakdown-header', text: translate('Detailed Progress Breakdown') });
-            
-            MODULES.forEach(module => {
-                const quizScore = studentProgress.quizScores[module.quizId];
-                const labScore = studentProgress.labScores[module.id];
-                
-                textsToRead.push({ id: `progress-module-${module.id}-title`, text: translate(module.title) });
-                textsToRead.push({ id: `progress-module-${module.id}-quiz-label`, text: translate('Learning Module & Quiz') });
-                textsToRead.push({ id: `progress-module-${module.id}-quiz-score`, text: quizScore ? `${translate('Score')}: ${quizScore.score} ${translate('out of')} ${quizScore.totalQuestions}` : translate('Not yet completed') });
-                
-                textsToRead.push({ id: `progress-module-${module.id}-lab-label`, text: translate('Lab / Simulation') });
-                textsToRead.push({ id: `progress-module-${module.id}-lab-score`, text: labScore ? `${translate('Score')}: ${labScore.score}%` : translate('Not yet completed') });
-            });
-        }
-        registerTexts(textsToRead);
-    } else {
-      // Clear TTS for other pages if no specific texts are registered
-      registerTexts([]);
-    }
-
-
     return () => clearTimeout(timer);
-  }, [dashboardView, labView, currentPage, isAuthenticated, currentUser, translate, quizScores, registerTexts, allUsers, allStudentProgress, studentProgress]);
+  }, [dashboardView, labView, currentPage, isAuthenticated, currentUser, translate]);
   
   useEffect(() => {
     if (isAuthenticated) {
@@ -296,7 +266,7 @@ const App: React.FC = () => {
         };
         
         // Link the new institution to the new user.
-        finalUser = { ...user, institutionId: newInstitution.id };
+        finalUser = { ...user, institutionId: newInstitution.id, avatarStyle: 'default' };
 
         // Add the new entities to our state.
         setAllInstitutions(prev => [...prev, newInstitution]);
@@ -310,6 +280,17 @@ const App: React.FC = () => {
             }));
         }
     }
+    
+    // Load avatar style preference
+    try {
+        const savedStyle = localStorage.getItem(`avatarStyle-${finalUser.id}`) as AvatarStyle;
+        if (savedStyle) {
+            finalUser = { ...finalUser, avatarStyle: savedStyle };
+        }
+    } catch (e) {
+        console.error("Could not load avatar style from localStorage", e);
+    }
+    setAvatarStyle(finalUser.avatarStyle || 'default');
     
     setCurrentUser(finalUser);
     setCurrentPage('dashboard');
@@ -424,7 +405,7 @@ const App: React.FC = () => {
         } else if (preProfileLocation.page === 'dashboard' && preProfileLocation.view) {
             setDashboardView(preProfileLocation.view as DashboardView);
         }
-        // No view to restore for 'progress' or 'distress'
+        // No view to restore for 'progress', 'distress', or 'meteo'
         setPreProfileLocation(null);
     } else {
         // Fallback
@@ -461,6 +442,16 @@ const App: React.FC = () => {
     setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
     setAllInstitutions(prev => prev.map(i => i.id === updatedInstitution.id ? updatedInstitution : i));
     setCurrentUser(updatedUser);
+    
+    // Save avatar style preference
+    if (updatedUser.avatarStyle) {
+        try {
+            localStorage.setItem(`avatarStyle-${updatedUser.id}`, updatedUser.avatarStyle);
+            setAvatarStyle(updatedUser.avatarStyle);
+        } catch (e) {
+            console.error("Could not save avatar style to localStorage", e);
+        }
+    }
   }, []);
   
   const handleOpenPanicModal = useCallback(() => {
@@ -488,7 +479,8 @@ const App: React.FC = () => {
   }, [translate]);
 
   const handleClosePanicModal = useCallback(() => setIsPanicModalOpen(false), []);
-  const handleDialEmergency = useCallback(() => window.location.href = 'tel:100', []);
+  const handleDialEmergency = useCallback(() => window.location.href = 'tel:112', []);
+  const handleDialAmbulance = useCallback(() => window.location.href = 'tel:108', []);
   const handleFindHospital = useCallback(() => {
     if (location) window.open(`https://www.google.com/maps/search/hospitals/@${location.latitude},${location.longitude},15z`, '_blank');
   }, [location]);
@@ -521,6 +513,7 @@ const App: React.FC = () => {
       avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(studentData.name)}/100/100`,
       institutionId: currentUser.institutionId,
       role: UserRole.STUDENT,
+      avatarStyle: 'default',
     };
     setAllUsers(prev => [...prev, newStudent]);
     setAllStudentProgress(prev => ({
@@ -549,6 +542,8 @@ const App: React.FC = () => {
 
   const profileBackText = preProfileLocation?.page === 'lab' ? translate('Back to Lab') 
     : preProfileLocation?.page === 'progress' ? translate('Back to Progress Tracker')
+    : preProfileLocation?.page === 'meteo' ? translate('Back to Meteorology')
+    : preProfileLocation?.page === 'news' ? translate('Back to News Portal')
     : translate('Back to Dashboard');
 
   const renderContent = () => {
@@ -594,6 +589,10 @@ const App: React.FC = () => {
                                     onUpdateStudent={handleUpdateStudent}
                                     onDeleteStudent={handleDeleteStudent}
                                   />;
+        case 'meteo':
+            return currentInstitution && <WindyMap institution={currentInstitution} />;
+        case 'news':
+            return currentUser && <News currentUser={currentUser} />;
         default:
             return null;
     }
@@ -662,6 +661,7 @@ const App: React.FC = () => {
             mood={avatarMood}
             isOpen={isAvatarVisible}
             onClose={() => setIsAvatarVisible(false)}
+            avatarStyle={avatarStyle}
           />
           <ChatbotButton onClick={handleOpenChatbot} />
           <PanicButton onClick={handleOpenPanicModal} />
@@ -673,16 +673,30 @@ const App: React.FC = () => {
         isOpen={isPanicModalOpen}
         onClose={handleClosePanicModal}
         onDialEmergency={handleDialEmergency}
+        onDialAmbulance={handleDialAmbulance}
         onFindHospital={handleFindHospital}
         onOpenDistressForm={handleOpenDistressForm}
         locationError={locationError}
         hasLocation={!!location}
       />
-      <Chatbot isOpen={isChatbotOpen} onClose={handleCloseChatbot} />
+      <Chatbot 
+        isOpen={isChatbotOpen} 
+        onClose={handleCloseChatbot} 
+        currentPage={currentPage} 
+        avatarStyle={avatarStyle}
+      />
       
       {/* Auth Modal Overlay: Renders on top of the app shell when not authenticated */}
       {!isAuthenticated && (
         <Auth onLoginSuccess={handleLoginSuccess} mockUsers={allUsers} />
+      )}
+
+      {/* Offline/Update Toasts */}
+      {showOfflineToast && (
+          <OfflineStatusToast type="offlineReady" onClose={() => setShowOfflineToast(false)} />
+      )}
+      {showUpdateToast && (
+          <OfflineStatusToast type="updateAvailable" onClose={() => setShowUpdateToast(false)} onRefresh={handleUpdate} />
       )}
     </div>
   );

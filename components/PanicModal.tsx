@@ -10,18 +10,20 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { PlayIcon } from './icons/PlayIcon';
 import { PauseIcon } from './icons/PauseIcon';
 import { StopIcon } from './icons/StopIcon';
+import { HeartPulseIcon } from './icons/HeartPulseIcon';
 
 interface PanicModalProps {
     isOpen: boolean;
     onClose: () => void;
     onDialEmergency: () => void;
+    onDialAmbulance: () => void;
     onFindHospital: () => void;
     onOpenDistressForm: () => void;
     locationError: string | null;
     hasLocation: boolean;
 }
 
-const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergency, onFindHospital, onOpenDistressForm, locationError, hasLocation }) => {
+const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergency, onDialAmbulance, onFindHospital, onOpenDistressForm, locationError, hasLocation }) => {
     const [manualLocation, setManualLocation] = useState('');
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId, clearQueue, toggleReadAloud, stopReadAloud, isPlaying, isPaused, hasQueue } = useTTS();
@@ -38,7 +40,8 @@ const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergenc
             const textsToRead = [
                 { id: 'panic-title', text: translate('Emergency Assistance') },
                 { id: 'panic-desc', text: translate('Are you in danger? Use your location to find nearby help or call emergency services directly.') },
-                { id: 'panic-call-btn', text: translate('Call Emergency (100)') },
+                { id: 'panic-call-btn', text: translate('Call Emergency (112)') },
+                { id: 'panic-ambulance-btn', text: translate('Call Ambulance (108)') },
                 { id: 'panic-hospital-btn', text: translate('Find Nearest Hospital') },
                 { id: 'panic-form-btn', text: translate('Fill Distress Form') },
             ];
@@ -134,7 +137,14 @@ const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergenc
                         className="w-full flex items-center justify-center gap-3 text-lg font-bold bg-teal-600 text-white p-4 rounded-xl shadow-md hover:bg-teal-700 transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-teal-300 dark:focus:ring-teal-800"
                     >
                         <PhoneOutgoingIcon className="h-6 w-6" />
-                        <span id="panic-call-btn" className={currentlySpokenId === 'panic-call-btn' ? 'tts-highlight' : ''}>{translate('Call Emergency (100)')}</span>
+                        <span id="panic-call-btn" className={currentlySpokenId === 'panic-call-btn' ? 'tts-highlight' : ''}>{translate('Call Emergency (112)')}</span>
+                    </button>
+                    <button
+                        onClick={onDialAmbulance}
+                        className="w-full flex items-center justify-center gap-3 text-lg font-bold bg-sky-600 text-white p-4 rounded-xl shadow-md hover:bg-sky-700 transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-sky-300 dark:focus:ring-sky-800"
+                    >
+                        <HeartPulseIcon className="h-6 w-6" />
+                        <span id="panic-ambulance-btn" className={currentlySpokenId === 'panic-ambulance-btn' ? 'tts-highlight' : ''}>{translate('Call Ambulance (108)')}</span>
                     </button>
                      <button
                         onClick={onFindHospital}

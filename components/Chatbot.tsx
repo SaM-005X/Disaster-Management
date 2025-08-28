@@ -10,10 +10,14 @@ import VoiceInputButton from './VoiceInputButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { SpeakerIcon } from './icons/SpeakerIcon';
 import { StopIcon } from './icons/StopIcon';
+import type { AvatarStyle } from '../types';
+import { handleApiError } from '../services/apiErrorHandler';
 
 interface ChatbotProps {
     isOpen: boolean;
     onClose: () => void;
+    currentPage?: string;
+    avatarStyle: AvatarStyle;
 }
 
 interface Message {
@@ -21,7 +25,7 @@ interface Message {
     text: string;
 }
 
-const SYSTEM_INSTRUCTION = "You are a helpful and friendly safety assistant for the 'Disaster Ready: EduSafe Platform', represented by an avatar named 'Captain Ready'. Your audience includes students (K-12 and higher), teachers, and parents. Provide clear, concise, and actionable information about natural and man-made disasters. Your expertise includes explaining why and how disasters happen, prevention methods, and safety procedures to follow during a disaster. Always prioritize safety and provide calm, reassuring advice. **Crucially, format your answers for maximum readability on a web interface. Use markdown for formatting:**\n- Use **bolding** (`**text**`) for headings, questions, or important terms.\n- Use numbered or bulleted lists (`1. ...` or `* ...`) for steps, tips, or key points.\n- Use short paragraphs and ensure there is clear spacing between different sections of your answer.";
+const SYSTEM_INSTRUCTION = "You are a helpful and friendly safety assistant for the 'Disaster Ready: EduSafe Platform', represented by an avatar named 'Captain Ready'. Your audience includes students (K-12 and higher), teachers, and parents. Provide clear, concise, and actionable information about natural and man-made disasters. Your expertise includes explaining why and how disasters happen, prevention methods, and safety procedures to follow during a disaster. **You also have a specialization in meteorology.** You can interpret live wind maps, explain what different colors and patterns mean (e.g., cyclones, high/low-pressure systems), and provide context for weather forecasts. You can answer questions like 'What do the colors on the map mean?' or 'Is a wind speed of 50 km/h dangerous?'. Always prioritize safety and provide calm, reassuring advice. **Crucially, format your answers for maximum readability on a web interface. Use markdown for formatting:**\n- Use **bolding** (`**text**`) for headings, questions, or important terms.\n- Use numbered or bulleted lists (`1. ...` or `* ...`) for steps, tips, or key points.\n- Use short paragraphs and ensure there is clear spacing between different sections of your answer.";
 
 /**
  * A simple and safe function to convert markdown-like text to HTML.
@@ -76,7 +80,7 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
 };
 
 
-const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
+const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarStyle }) => {
     const [chat, setChat] = useState<Chat | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -120,25 +124,26 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
                         },
                     });
                     setChat(chatSession);
-                    setMessages([
-                        {
-                            role: 'model',
-                            text: translate("Hello! I'm Captain Ready, your Safety Assistant. How can I help you prepare for disasters today? You can ask me things like 'What should I do during an earthquake?' or 'How can I make a flood emergency kit?'")
-                        }
-                    ]);
+                    
+                    const initialMessage = currentPage === 'meteo'
+                        ? translate("Welcome to the Meteorology page! I can help you understand the wind map or explain what the forecast means. What would you like to know?")
+                        : translate("Hello! I'm Captain Ready, your Safety Assistant. How can I help you prepare for disasters today? You can ask me things like 'What should I do during an earthquake?' or 'How can I make a flood emergency kit?'");
+
+                    setMessages([{ role: 'model', text: initialMessage }]);
                 } catch (error) {
-                    console.error("Failed to initialize Gemini AI:", error);
+                    const errorMessage = handleApiError(error);
+                    console.error("Failed to initialize Gemini AI:", errorMessage);
                     setMessages([
                         {
                             role: 'model',
-                            text: translate("Sorry, I'm having trouble connecting right now. Please try again later.")
+                            text: `${translate("Sorry, I'm having trouble connecting right now.")} (${errorMessage})`
                         }
                     ]);
                 }
             };
             initChat();
         }
-    }, [isOpen, translate]);
+    }, [isOpen, translate, currentPage]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -159,6 +164,12 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
             utterance.onstart = () => setSpeakingMessageIndex(index);
             utterance.onend = () => setSpeakingMessageIndex(null);
             utterance.onerror = (e) => {
+                // This error is expected when speech is manually stopped or a new utterance
+                // begins before the old one finishes. We can safely ignore it to prevent
+                // console noise, as it's part of the normal operation of the TTS feature.
+                if (e.error === 'interrupted') {
+                    return; 
+                }
                 console.error("Speech synthesis error:", e.error);
                 setSpeakingMessageIndex(null);
             };
@@ -190,8 +201,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
                 });
             }
         } catch (error) {
-            console.error("Error sending message:", error);
-            setMessages(prev => [...prev, { role: 'model', text: translate("I'm sorry, I encountered an error. Please try asking again.") }]);
+            const errorMessage = handleApiError(error);
+            console.error("Error sending message:", errorMessage);
+            setMessages(prev => [...prev, { role: 'model', text: `${translate("I'm sorry, I encountered an error.")} (${errorMessage})` }]);
         } finally {
             setIsLoading(false);
         }
@@ -210,7 +222,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
                 {/* Header */}
                 <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <div className="flex items-center space-x-3">
-                        <Avatar mood="neutral" className="h-10 w-10 text-teal-600 dark:text-teal-400" />
+                        <Avatar mood="neutral" className="h-10 w-10 text-teal-600 dark:text-teal-400" style={avatarStyle} />
                         <h2 id="chatbot-title" className="text-xl font-bold text-gray-800 dark:text-white">{translate('Safety Assistant')}</h2>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label={translate('Close chat')}>
@@ -222,7 +234,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
                 <main className="flex-1 overflow-y-auto p-4 space-y-4">
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                           {msg.role === 'model' && <div className="flex-shrink-0"><Avatar mood="neutral" className="h-10 w-10"/></div>}
+                           {msg.role === 'model' && <div className="flex-shrink-0"><Avatar mood="neutral" className="h-10 w-10" style={avatarStyle}/></div>}
                            <div className={`max-w-md lg:max-w-lg px-4 py-3 rounded-2xl ${msg.role === 'user' ? 'bg-teal-600 text-white rounded-br-none' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}>
                                <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msg.text) }} />
                                {msg.role === 'model' && msg.text && (
@@ -240,7 +252,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose }) => {
                     ))}
                     {isLoading && (
                          <div className="flex items-start gap-3">
-                           <div className="flex-shrink-0"><Avatar mood="thinking" className="h-10 w-10" /></div>
+                           <div className="flex-shrink-0"><Avatar mood="thinking" className="h-10 w-10" style={avatarStyle} /></div>
                            <div className="max-w-md lg:max-w-lg p-3 rounded-2xl bg-gray-100 dark:bg-gray-700 rounded-bl-none">
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse [animation-delay:-0.3s]"></span>
