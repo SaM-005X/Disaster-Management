@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { MOCK_USERS, MODULES, QUIZZES, INSTITUTIONS, MOCK_STUDENT_PROGRESS } from './constants';
+import { MODULES, QUIZZES } from './constants';
 import type { LearningModule, Quiz, User, QuizScore, Institution, LabScore, StudentProgress, AvatarStyle } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
@@ -25,9 +25,12 @@ import AboutUs from './components/AboutUs';
 import ProgressTracker from './components/ProgressTracker';
 import AlertsBanner from './components/AlertsBanner';
 import WindyMap from './components/WindyMap';
-import News from './components/News';
 import { useTranslate } from './contexts/TranslationContext';
 import OfflineStatusToast from './components/OfflineStatusToast';
+import { supabase, fetchUserProfile, fetchInstitution, fetchStudentProgress, fetchStudentsForInstitution, fetchProgressForStudents, updateProfile, addStudent, updateStudent, deleteStudent } from './services/supabaseClient';
+// Fix: Import the 'News' component.
+import News from './components/News';
+
 
 type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
@@ -37,15 +40,15 @@ export type AvatarMood = 'neutral' | 'happy' | 'thinking' | 'encouraging';
 
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
-  // From now on, MOCK data is only the initial state.
-  const [allUsers, setAllUsers] = useState<User[]>(MOCK_USERS);
-  const [allInstitutions, setAllInstitutions] = useState<Institution[]>(INSTITUTIONS);
-  const [allStudentProgress, setAllStudentProgress] = useState<Record<string, StudentProgress>>(MOCK_STUDENT_PROGRESS);
-
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  // FIX: Derive currentInstitution directly from currentUser and allInstitutions to prevent race conditions.
-  const currentInstitution = currentUser ? allInstitutions.find(i => i.id === currentUser.institutionId) ?? null : null;
+  const [currentInstitution, setCurrentInstitution] = useState<Institution | null>(null);
+  const [studentProgress, setStudentProgress] = useState<StudentProgress | undefined>(undefined);
+
+  // State for teacher's classroom view
+  const [studentsInClass, setStudentsInClass] = useState<User[]>([]);
+  const [studentProgressData, setStudentProgressData] = useState<Record<string, StudentProgress>>({});
   
+  const [isLoading, setIsLoading] = useState(true);
   const isAuthenticated = !!currentUser && !!currentInstitution;
 
   // Navigation State
@@ -62,7 +65,6 @@ const App: React.FC = () => {
   const [isAlertsBannerVisible, setIsAlertsBannerVisible] = useState(true);
 
   // Derived state for the current student's progress
-  const studentProgress = currentUser?.role === UserRole.STUDENT ? allStudentProgress[currentUser.id] : undefined;
   const quizScores = studentProgress?.quizScores ?? {};
   const labScores = studentProgress?.labScores ?? {};
 
@@ -91,6 +93,98 @@ const App: React.FC = () => {
 
   // Hooks
   const { translate } = useTranslate();
+
+  // Supabase Auth Listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        setIsLoading(true);
+        if (session?.user) {
+            let profile = null;
+            let institution = null;
+            let progress = undefined;
+            let attempt = 0;
+            const maxAttempts = 3;
+
+            // Retry loop to patiently wait for the database trigger to create the profile.
+            while (!profile && attempt < maxAttempts) {
+                attempt++;
+                console.log(`Attempting to fetch user profile, attempt #${attempt}`);
+                profile = await fetchUserProfile(session.user.id);
+                if (!profile && attempt < maxAttempts) {
+                    // Wait with an increasing delay (1s, 2s)
+                    await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                }
+            }
+
+            if (profile) {
+                // Profile found, load the rest of the user's data.
+                institution = await fetchInstitution(profile.institutionId);
+                setAvatarStyle(profile.avatarStyle || 'default');
+                if (profile.role === UserRole.STUDENT) {
+                    progress = await fetchStudentProgress(profile.id);
+                }
+                setCurrentUser(profile);
+                setCurrentInstitution(institution);
+                setStudentProgress(progress);
+            } else {
+                // After multiple tries, the profile is still missing.
+                // Instead of logging out and causing a loop, we force the user into the app
+                // with partial data and show an alert. This guarantees entry into the site.
+                console.error("CRITICAL: User is authenticated but profile could not be found after multiple retries. This might indicate an issue with the `create_user_profile` database trigger.");
+                
+                const fallbackUser: User = {
+                    id: session.user.id,
+                    name: session.user.email || 'New User',
+                    role: UserRole.STUDENT, // Safe default
+                    institutionId: '', // Unknown
+                    class: 'Unknown', // Unknown
+                    avatarUrl: `https://picsum.photos/seed/${session.user.id}/100/100`,
+                    avatarStyle: 'default',
+                };
+                 const fallbackInstitution: Institution = {
+                    id: '',
+                    name: 'Unknown Institution',
+                    address: '',
+                    phoneNumber: '',
+                };
+                
+                setCurrentUser(fallbackUser);
+                setCurrentInstitution(fallbackInstitution);
+                setStudentProgress(undefined);
+                
+                // Alert the user about the situation.
+                alert("Welcome! We're having trouble loading your full profile right now, but we've logged you in. Some information may be missing. Please try visiting your Profile page to update your details.");
+            }
+
+        } else {
+            // No session, so clear all user-related state.
+            setCurrentUser(null);
+            setCurrentInstitution(null);
+            setStudentProgress(undefined);
+        }
+        setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch classroom data if user is a teacher
+  useEffect(() => {
+    const fetchClassroomData = async () => {
+        if (currentUser && currentUser.role === UserRole.TEACHER && currentInstitution) {
+            const students = await fetchStudentsForInstitution(currentInstitution.id);
+            if (students.length > 0) {
+                const progress = await fetchProgressForStudents(students.map(s => s.id));
+                setStudentsInClass(students);
+                setStudentProgressData(progress);
+            } else {
+                setStudentsInClass([]);
+                setStudentProgressData({});
+            }
+        }
+    };
+    fetchClassroomData();
+  }, [currentUser, currentInstitution]);
 
   // Effect for Service Worker Registration and Updates
   useEffect(() => {
@@ -254,53 +348,9 @@ const App: React.FC = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   }, []);
 
-  const handleLoginSuccess = useCallback((user: User, isNewUser = false) => {
-    let finalUser = user;
-    if (isNewUser) {
-        // Create a blank institution for the new user.
-        const newInstitution: Institution = {
-            id: `inst-${Date.now()}`,
-            name: ``, // User will fill this in
-            address: '',
-            phoneNumber: '',
-        };
-        
-        // Link the new institution to the new user.
-        finalUser = { ...user, institutionId: newInstitution.id, avatarStyle: 'default' };
-
-        // Add the new entities to our state.
-        setAllInstitutions(prev => [...prev, newInstitution]);
-        setAllUsers(prev => [...prev, finalUser]);
-        
-        // Initialize blank progress for the new student.
-        if (finalUser.role === UserRole.STUDENT) {
-            setAllStudentProgress(prev => ({
-                ...prev,
-                [finalUser.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
-            }));
-        }
-    }
-    
-    // Load avatar style preference
-    try {
-        const savedStyle = localStorage.getItem(`avatarStyle-${finalUser.id}`) as AvatarStyle;
-        if (savedStyle) {
-            finalUser = { ...finalUser, avatarStyle: savedStyle };
-        }
-    } catch (e) {
-        console.error("Could not load avatar style from localStorage", e);
-    }
-    setAvatarStyle(finalUser.avatarStyle || 'default');
-    
-    setCurrentUser(finalUser);
-    setCurrentPage('dashboard');
-    setDashboardView('dashboard');
-    setIsAlertsBannerVisible(true);
-    sessionStorage.removeItem('alertsDismissed');
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    setCurrentUser(null);
+  const handleLogout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.error('Error logging out:', error);
     setSelectedModule(null);
     setSelectedQuiz(null);
     setLastQuizResult(null);
@@ -333,16 +383,8 @@ const App: React.FC = () => {
 
   const handleSimulationComplete = useCallback((module: LearningModule, score: LabScore) => {
       if (currentUser) {
-        setAllStudentProgress(prev => ({
-            ...prev,
-            [currentUser.id]: {
-                ...(prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 }),
-                labScores: {
-                    ...(prev[currentUser.id]?.labScores ?? {}),
-                    [module.id]: score
-                }
-            }
-        }));
+        // TODO: Update lab score in Supabase
+        console.log("Lab completed, score to be saved:", score);
       }
       setLabView('lab_dashboard');
   }, [currentUser]);
@@ -352,16 +394,8 @@ const App: React.FC = () => {
       const result = { quizId: selectedQuiz.id, score, totalQuestions };
       setLastQuizResult(result);
 
-      setAllStudentProgress(prev => ({
-          ...prev,
-          [currentUser.id]: {
-              ...(prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 }),
-              quizScores: {
-                  ...(prev[currentUser.id]?.quizScores ?? {}),
-                  [selectedQuiz.id]: result,
-              }
-          }
-      }));
+      // TODO: Update quiz score in Supabase
+      console.log("Quiz completed, result to be saved:", result);
       
       const percentage = Math.round((score / totalQuestions) * 100);
       if (percentage >= 80) {
@@ -438,18 +472,14 @@ const App: React.FC = () => {
     }
   }, [labScores]);
 
-  const handleSaveProfile = useCallback((updatedUser: User, updatedInstitution: Institution) => {
-    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    setAllInstitutions(prev => prev.map(i => i.id === updatedInstitution.id ? updatedInstitution : i));
-    setCurrentUser(updatedUser);
-    
-    // Save avatar style preference
-    if (updatedUser.avatarStyle) {
-        try {
+  const handleSaveProfile = useCallback(async (updatedUser: User, updatedInstitution: Institution) => {
+    const success = await updateProfile(updatedUser, updatedInstitution);
+    if (success) {
+        setCurrentUser(updatedUser);
+        setCurrentInstitution(updatedInstitution);
+        if (updatedUser.avatarStyle) {
             localStorage.setItem(`avatarStyle-${updatedUser.id}`, updatedUser.avatarStyle);
             setAvatarStyle(updatedUser.avatarStyle);
-        } catch (e) {
-            console.error("Could not save avatar style to localStorage", e);
         }
     }
   }, []);
@@ -505,34 +535,31 @@ const App: React.FC = () => {
   const handleOpenChatbot = useCallback(() => setIsChatbotOpen(true), []);
   const handleCloseChatbot = useCallback(() => setIsChatbotOpen(false), []);
 
-  const handleAddStudent = useCallback((studentData: Omit<User, 'id' | 'avatarUrl' | 'institutionId' | 'role'>) => {
-    if (!currentUser) return;
-    const newStudent: User = {
-      ...studentData,
-      id: `user-${Date.now()}`,
-      avatarUrl: `https://picsum.photos/seed/${encodeURIComponent(studentData.name)}/100/100`,
-      institutionId: currentUser.institutionId,
-      role: UserRole.STUDENT,
-      avatarStyle: 'default',
-    };
-    setAllUsers(prev => [...prev, newStudent]);
-    setAllStudentProgress(prev => ({
-      ...prev,
-      [newStudent.id]: { quizScores: {}, labScores: {}, timeSpent: 0 },
-    }));
-  }, [currentUser]);
+  const handleAddStudent = useCallback(async (studentData: any) => {
+    if (!currentInstitution) return;
+    const newStudent = await addStudent(studentData, currentInstitution.id);
+    if (newStudent) {
+        setStudentsInClass(prev => [...prev, newStudent]);
+    }
+  }, [currentInstitution]);
 
-  const handleUpdateStudent = useCallback((updatedStudent: User) => {
-    setAllUsers(prev => prev.map(u => u.id === updatedStudent.id ? updatedStudent : u));
+  const handleUpdateStudent = useCallback(async (updatedStudent: User) => {
+    const success = await updateStudent(updatedStudent);
+    if (success) {
+      setStudentsInClass(prev => prev.map(u => u.id === updatedStudent.id ? updatedStudent : u));
+    }
   }, []);
 
-  const handleDeleteStudent = useCallback((studentId: string) => {
-    setAllUsers(prev => prev.filter(u => u.id !== studentId));
-    setAllStudentProgress(prev => {
-        const newState = { ...prev };
-        delete newState[studentId];
-        return newState;
-    });
+  const handleDeleteStudent = useCallback(async (studentId: string) => {
+    const success = await deleteStudent(studentId);
+    if (success) {
+      setStudentsInClass(prev => prev.filter(u => u.id !== studentId));
+      setStudentProgressData(prev => {
+          const newState = { ...prev };
+          delete newState[studentId];
+          return newState;
+      });
+    }
   }, []);
 
   const handleCloseAlertsBanner = () => {
@@ -545,6 +572,14 @@ const App: React.FC = () => {
     : preProfileLocation?.page === 'meteo' ? translate('Back to Meteorology')
     : preProfileLocation?.page === 'news' ? translate('Back to News Portal')
     : translate('Back to Dashboard');
+
+  if (isLoading) {
+      return (
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-teal-500"></div>
+          </div>
+      );
+  }
 
   const renderContent = () => {
     switch (currentPage) {
@@ -579,12 +614,11 @@ const App: React.FC = () => {
         case 'distress':
             return currentUser && <DistressForm user={currentUser} onBack={handleReturnToDashboard} />;
         case 'progress':
-            const studentsForTeacher = allUsers.filter(u => u.role === UserRole.STUDENT && u.institutionId === currentUser?.institutionId);
             return currentUser && <ProgressTracker 
                                     user={currentUser} 
                                     modules={MODULES} 
-                                    studentData={studentsForTeacher} 
-                                    progressData={allStudentProgress}
+                                    studentData={studentsInClass} 
+                                    progressData={studentProgressData}
                                     onAddStudent={handleAddStudent}
                                     onUpdateStudent={handleUpdateStudent}
                                     onDeleteStudent={handleDeleteStudent}
@@ -688,7 +722,7 @@ const App: React.FC = () => {
       
       {/* Auth Modal Overlay: Renders on top of the app shell when not authenticated */}
       {!isAuthenticated && (
-        <Auth onLoginSuccess={handleLoginSuccess} mockUsers={allUsers} />
+        <Auth />
       )}
 
       {/* Offline/Update Toasts */}

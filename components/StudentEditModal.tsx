@@ -5,7 +5,7 @@ import { XIcon } from './icons/XIcon';
 
 interface StudentEditModalProps {
   student: User | null;
-  onSave: (student: User | Omit<User, 'id' | 'avatarUrl' | 'institutionId' | 'role'>) => void;
+  onSave: (student: any) => void;
   onClose: () => void;
 }
 
@@ -15,7 +15,11 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
     name: '',
     class: '',
     rollNumber: '',
+    email: '',
+    password: '',
   });
+
+  const isEditing = !!student;
 
   useEffect(() => {
     if (student) {
@@ -23,9 +27,11 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
         name: student.name,
         class: student.class,
         rollNumber: student.rollNumber || '',
+        email: '', // Not exposing existing user's email for editing
+        password: '',
       });
     } else {
-      setFormData({ name: '', class: '', rollNumber: '' });
+      setFormData({ name: '', class: '', rollNumber: '', email: '', password: '' });
     }
   }, [student]);
 
@@ -36,14 +42,17 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (student) {
-      onSave({ ...student, ...formData });
+    if (isEditing && student) {
+      onSave({ ...student, name: formData.name, class: formData.class, rollNumber: formData.rollNumber });
     } else {
+        if (!formData.email || !formData.password) {
+            alert(translate('Email and a temporary password are required to add a new student.'));
+            return;
+        }
       onSave(formData);
     }
   };
 
-  const isEditing = !!student;
 
   return (
     <div
@@ -83,6 +92,40 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
                   className="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 text-gray-900 dark:text-gray-200"
                 />
               </div>
+              {!isEditing && (
+                <>
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {translate('Student Email')}
+                        </label>
+                        <input
+                          type="email"
+                          name="email"
+                          id="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          required
+                           placeholder={translate('An invitation will be sent here')}
+                          className="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 text-gray-900 dark:text-gray-200"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {translate('Temporary Password')}
+                        </label>
+                        <input
+                          type="password"
+                          name="password"
+                          id="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          required
+                          placeholder={translate('Student will be asked to change this')}
+                          className="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 text-gray-900 dark:text-gray-200"
+                        />
+                    </div>
+                </>
+              )}
               <div>
                 <label htmlFor="class" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {translate('Class/Grade')}

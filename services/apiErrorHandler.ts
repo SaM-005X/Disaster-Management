@@ -8,6 +8,11 @@ export function handleApiError(error: unknown): string {
   // Log the raw error for debugging purposes
   console.error("API Error caught by handler:", error);
 
+  // Handle Supabase and other library errors that have a 'message' property
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+    return (error as any).message;
+  }
+  
   if (error instanceof Error) {
     // Check for common network errors (e.g., from fetch)
     if (error.message.toLowerCase().includes('failed to fetch')) {

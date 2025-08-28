@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
-import { UserRole } from '../types';
-import { useTranslate } from '../contexts/TranslationContext';
-import { useTTS, type TTSText } from './../contexts/TTSContext';
-import { supabase } from '../services/supabaseClient';
-import { handleApiError } from '../services/apiErrorHandler';
+import { UserRole } from './types';
+import { useTranslate } from './contexts/TranslationContext';
+import { useTTS, type TTSText } from './contexts/TTSContext';
+import { supabase } from './services/supabaseClient';
+import { handleApiError } from './services/apiErrorHandler';
 
 const Auth: React.FC = () => {
   const [isLoginView, setIsLoginView] = useState(true);
