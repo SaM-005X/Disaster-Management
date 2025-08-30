@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { User, Institution } from '../types';
+import type { User } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, TTSText } from '../contexts/TTSContext';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
@@ -9,11 +9,10 @@ import { PrinterIcon } from './icons/PrinterIcon';
 
 interface CertificateProps {
   user: User;
-  institution: Institution;
   onBack: () => void;
 }
 
-const Certificate: React.FC<CertificateProps> = ({ user, institution, onBack }) => {
+const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
   const completionDate = new Date().toLocaleDateString(undefined, {
@@ -28,7 +27,7 @@ const Certificate: React.FC<CertificateProps> = ({ user, institution, onBack }) 
 
   useEffect(() => {
     const textsToRead: TTSText[] = [
-      { id: 'cert-inst-name', text: translate(institution.name) },
+      { id: 'cert-inst-name', text: translate(user.institutionName) },
       { id: 'cert-platform-name', text: translate('EduSafe Platform') },
       { id: 'cert-title', text: translate('Certificate of Preparedness') },
       { id: 'cert-presented-to', text: translate('This certificate is proudly presented to') },
@@ -42,7 +41,7 @@ const Certificate: React.FC<CertificateProps> = ({ user, institution, onBack }) 
       { id: 'cert-auth-value', text: translate('EduSafe Coordination Team') },
     ];
     registerTexts(textsToRead);
-  }, [user, institution, achievementTitle, achievementReason, completionDate, registerTexts, translate]);
+  }, [user, achievementTitle, achievementReason, completionDate, registerTexts, translate]);
 
   const handlePrint = () => {
     window.print();
@@ -69,7 +68,7 @@ const Certificate: React.FC<CertificateProps> = ({ user, institution, onBack }) 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-10 max-w-4xl mx-auto border-4 border-teal-500 dark:border-teal-400 certificate-bg">
             <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
                 <ShieldCheckIcon className="h-16 w-16 text-teal-600 dark:text-teal-400 mx-auto" />
-                <h1 id="cert-inst-name" className={`text-2xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'cert-inst-name' ? 'tts-highlight' : ''}`}>{translate(institution.name)}</h1>
+                <h1 id="cert-inst-name" className={`text-2xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'cert-inst-name' ? 'tts-highlight' : ''}`}>{translate(user.institutionName)}</h1>
                 <p id="cert-platform-name" className={`text-lg text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'cert-platform-name' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform')}</p>
             </div>
             <div className="my-10 text-center">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User } from '../types';
 import { UserRole } from '../types';
 import type { LabView } from '../App';
@@ -11,8 +11,10 @@ import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { WindIcon } from './icons/WindIcon';
 import { XIcon } from './icons/XIcon';
 import { NewspaperIcon } from './icons/NewspaperIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { GlobeIcon } from './icons/GlobeIcon';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic';
 
 interface SidebarProps {
   currentPage: Page;
@@ -45,8 +47,35 @@ const NavLink: React.FC<{
   );
 };
 
+const SubNavLink: React.FC<{
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}> = ({ label, isActive, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
+        isActive
+          ? 'text-teal-600 dark:text-teal-400 font-bold'
+          : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full mr-3 ${isActive ? 'bg-teal-500' : 'bg-gray-400 dark:bg-gray-500'}`}></span>
+      {label}
+    </button>
+  );
+};
+
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, setIsOpen, user, labView, onShowSolutions }) => {
   const { translate } = useTranslate();
+  const [isMeteoOpen, setIsMeteoOpen] = useState(currentPage === 'meteo' || currentPage === 'tectonic');
+
+  useEffect(() => {
+    if (currentPage === 'meteo' || currentPage === 'tectonic') {
+        setIsMeteoOpen(true);
+    }
+  }, [currentPage]);
 
   const handleNavigation = (page: Page) => {
     setCurrentPage(page);
@@ -87,14 +116,38 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               onClick={() => handleNavigation('lab')}
             />
           </li>
-          <li>
-            <NavLink
-              icon={<WindIcon className="h-6 w-6" />}
-              label={translate('Meteorology')}
-              isActive={currentPage === 'meteo'}
-              onClick={() => handleNavigation('meteo')}
-            />
-          </li>
+          {user && user.role !== UserRole.GOVERNMENT_OFFICIAL && (
+            <li>
+                <button
+                onClick={() => setIsMeteoOpen(!isMeteoOpen)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg font-semibold transition-colors duration-200 ${
+                    (currentPage === 'meteo' || currentPage === 'tectonic')
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                >
+                <div className="flex items-center space-x-3">
+                    <WindIcon className="h-6 w-6" />
+                    <span>{translate('Meteorology')}</span>
+                </div>
+                <ChevronDownIcon className={`h-5 w-5 transition-transform ${isMeteoOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isMeteoOpen && (
+                <div className="pl-8 pt-2 pb-1 space-y-2">
+                    <SubNavLink
+                    label={translate('Wind & Weather Map')}
+                    isActive={currentPage === 'meteo'}
+                    onClick={() => handleNavigation('meteo')}
+                    />
+                    <SubNavLink
+                    label={translate('Tectonic Activity Map')}
+                    isActive={currentPage === 'tectonic'}
+                    onClick={() => handleNavigation('tectonic')}
+                    />
+                </div>
+                )}
+            </li>
+          )}
            <li>
             <NavLink
               icon={<NewspaperIcon className="h-6 w-6" />}
@@ -111,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               onClick={() => handleNavigation('progress')}
             />
           </li>
-          {user?.role === UserRole.TEACHER && (
+          {(user?.role === UserRole.TEACHER || user?.role === UserRole.GOVERNMENT_OFFICIAL) && (
             <li>
                 <NavLink
                     icon={<KeyIcon className="h-6 w-6" />}

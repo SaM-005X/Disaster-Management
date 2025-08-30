@@ -6,6 +6,7 @@ import type { ReliefCamp } from '../types';
 import { PhoneIcon } from './icons/PhoneIcon';
 import { LocationIcon } from './icons/LocationIcon';
 import { ExternalLinkIcon } from './icons/ExternalLinkIcon';
+import ErrorMessage from './ErrorMessage';
 
 interface ReliefCampsProps {
     onCampSelect: (camp: ReliefCamp) => void;
@@ -36,7 +37,11 @@ const ReliefCamps: React.FC<ReliefCampsProps> = ({ onCampSelect }) => {
                         setCamps(fetchedCamps);
                     } catch (apiError) {
                         console.error("Failed to fetch relief camps:", apiError);
-                        setError(translate('Could not fetch relief center data. Please try again later.'));
+                        if (apiError instanceof Error) {
+                            setError(apiError.message);
+                        } else {
+                            setError(translate('Could not fetch relief center data. Please try again later.'));
+                        }
                     } finally {
                         setIsLoading(false);
                     }
@@ -95,7 +100,7 @@ const ReliefCamps: React.FC<ReliefCampsProps> = ({ onCampSelect }) => {
         }
 
         if (error) {
-            return <p className="p-4 text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/50 rounded-lg">{error}</p>;
+            return <ErrorMessage message={error} />;
         }
 
         if (camps.length === 0) {

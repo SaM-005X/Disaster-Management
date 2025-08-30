@@ -17,9 +17,29 @@ interface TTSContextType {
   hasQueue: boolean;
   isSupported: boolean;
   currentlySpokenId: string | null;
+  rate: number;
+  pitch: number;
+  setRate: (rate: number) => void;
+  setPitch: (pitch: number) => void;
 }
 
 const TTSContext = createContext<TTSContextType | undefined>(undefined);
+
+export const TTS_DEFAULTS = {
+  rate: 1,
+  pitch: 1,
+  minRate: 0.5,
+  maxRate: 2,
+  minPitch: 0.5,
+  maxPitch: 2,
+};
+
+const getFromStorage = (key: string, defaultValue: number): number => {
+  if (typeof window === 'undefined') return defaultValue;
+  const storedValue = localStorage.getItem(key);
+  return storedValue ? parseFloat(storedValue) : defaultValue;
+};
+
 
 export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isSupported, setIsSupported] = useState(false);
@@ -27,6 +47,8 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [state, setState] = useState<TTSState>('idle');
     const [currentIndex, setCurrentIndex] = useState(0);
     const [currentlySpokenId, setCurrentlySpokenId] = useState<string | null>(null);
+    const [rate, setRateState] = useState(() => getFromStorage('ttsRate', TTS_DEFAULTS.rate));
+    const [pitch, setPitchState] = useState(() => getFromStorage('ttsPitch', TTS_DEFAULTS.pitch));
 
     const synthRef = useRef<SpeechSynthesis | null>(null);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -37,6 +59,18 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => { queueRef.current = queue; }, [queue]);
     const currentIndexRef = useRef(currentIndex);
     useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+    
+    const setRate = useCallback((newRate: number) => {
+        const clampedRate = Math.max(TTS_DEFAULTS.minRate, Math.min(newRate, TTS_DEFAULTS.maxRate));
+        setRateState(clampedRate);
+        localStorage.setItem('ttsRate', String(clampedRate));
+    }, []);
+
+    const setPitch = useCallback((newPitch: number) => {
+        const clampedPitch = Math.max(TTS_DEFAULTS.minPitch, Math.min(newPitch, TTS_DEFAULTS.maxPitch));
+        setPitchState(clampedPitch);
+        localStorage.setItem('ttsPitch', String(clampedPitch));
+    }, []);
 
     const playUtterance = useCallback((index: number) => {
         if (!isSupported || !synthRef.current || index >= queueRef.current.length) {
@@ -50,6 +84,8 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const textInfo = queueRef.current[index];
         const utterance = new SpeechSynthesisUtterance(textInfo.text);
+        utterance.rate = rate;
+        utterance.pitch = pitch;
         utteranceRef.current = utterance;
 
         utterance.onstart = () => {
@@ -89,7 +125,7 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         synthRef.current.speak(utterance);
-    }, [isSupported]);
+    }, [isSupported, rate, pitch]);
     
     useEffect(() => {
         if (state === 'playing') {
@@ -154,7 +190,11 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             isPaused,
             isSupported,
             hasQueue: queue.length > 0,
-            currentlySpokenId
+            currentlySpokenId,
+            rate,
+            pitch,
+            setRate,
+            setPitch,
         }}>
             {children}
         </TTSContext.Provider>

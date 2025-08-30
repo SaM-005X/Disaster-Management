@@ -88,11 +88,7 @@ export async function fetchRealTimeAlerts(location: string): Promise<Alert[]> {
   } catch (error) {
     const errorMessage = handleApiError(error);
     console.error('Alert Generation API error:', errorMessage);
-    // On any API error, return a set of mock alerts to ensure the UI is populated
-    // and the feature remains visible, which is crucial for development and demos.
-    const mockAlerts = getMockAlerts();
-    // Cache the mock response to avoid repeated failed calls during the same session.
-    alertCache.set(cacheKey, mockAlerts);
-    return mockAlerts;
+    // Re-throw the error to be handled by the calling component.
+    throw new Error(errorMessage);
   }
 }

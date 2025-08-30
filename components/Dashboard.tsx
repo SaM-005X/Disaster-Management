@@ -1,17 +1,35 @@
 import React, { useEffect } from 'react';
-import type { LearningModule, QuizScore } from '../types';
+import type { LearningModule, QuizScore, User, Resource, HistoricalDisaster } from '../types';
+import { UserRole } from '../types';
 import ModuleCard from './ModuleCard';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
+import GovernmentWidgets from './GovernmentWidgets';
+import { Theme } from '../App';
 
 interface DashboardProps {
   modules: LearningModule[];
   onSelectModule: (module: LearningModule) => void;
   onStartQuiz: (moduleId: string) => void;
   quizScores: Record<string, QuizScore>;
+  user: User | null;
+  theme: Theme;
+  resources: Resource[];
+  historicalDisasters: HistoricalDisaster[];
+  onAddResource: (data: Omit<Resource, 'id' | 'lastUpdated'>) => void;
+  onUpdateResource: (data: Omit<Resource, 'lastUpdated'> & { id: string }) => void;
+  onDeleteResource: (id: string) => void;
+  onAddDisaster: (data: Omit<HistoricalDisaster, 'id'>) => void;
+  onUpdateDisaster: (data: HistoricalDisaster) => void;
+  onDeleteDisaster: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ modules, onSelectModule, onStartQuiz, quizScores }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  modules, onSelectModule, onStartQuiz, quizScores, user, theme,
+  resources, historicalDisasters,
+  onAddResource, onUpdateResource, onDeleteResource,
+  onAddDisaster, onUpdateDisaster, onDeleteDisaster
+}) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
 
@@ -42,6 +60,20 @@ const Dashboard: React.FC<DashboardProps> = ({ modules, onSelectModule, onStartQ
 
   return (
     <div>
+      {user?.role === UserRole.GOVERNMENT_OFFICIAL && (
+        <GovernmentWidgets 
+            user={user} 
+            theme={theme}
+            resources={resources}
+            historicalDisasters={historicalDisasters}
+            onAddResource={onAddResource}
+            onUpdateResource={onUpdateResource}
+            onDeleteResource={onDeleteResource}
+            onAddDisaster={onAddDisaster}
+            onUpdateDisaster={onUpdateDisaster}
+            onDeleteDisaster={onDeleteDisaster}
+        />
+      )}
       <div className="mb-8">
         <h2 
           id="dashboard-header"

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import type { Institution, ReliefCamp } from '../types';
+import type { User, ReliefCamp } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
 import WeatherForecast from './WeatherForecast';
@@ -9,8 +9,9 @@ import { getCoordinatesForLocation, getLocationNameForCoordinates } from '../ser
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronUpIcon } from './icons/ChevronUpIcon';
 import { SearchIcon } from './icons/SearchIcon';
-import { StarIcon } from './icons/StarIcon';
 import { LocationIcon } from './icons/LocationIcon';
+import ErrorMessage from './ErrorMessage';
+import { Theme } from '../App';
 
 interface LocationState {
     name: string;
@@ -19,22 +20,22 @@ interface LocationState {
 }
 
 interface WindyMapProps {
-    institution: Institution;
+    user: User;
+    theme: Theme;
 }
 
-const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
+const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
     
     const [isForecastVisible, setIsForecastVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentLocation, setCurrentLocation] = useState<LocationState | null>(null);
-    const [defaultLocation, setDefaultLocation] = useState<LocationState | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [zoom, setZoom] = useState(7);
 
-    const handleSearch = useCallback(async (query: string, isInitialLoad = false) => {
+    const handleSearch = useCallback(async (query: string) => {
         const locationToSearch = query.trim();
         if (!locationToSearch) return;
 
@@ -44,110 +45,85 @@ const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
             const { lat, lon } = await getCoordinatesForLocation(locationToSearch);
             const locationState = { name: locationToSearch, lat, lon };
             setCurrentLocation(locationState);
-            setZoom(isInitialLoad ? 7 : 10);
-            if (isInitialLoad && !localStorage.getItem('defaultWeatherLocation')) {
-                setDefaultLocation(locationState);
-            }
+            setZoom(10);
         } catch (err) {
-            setError(translate('Could not find location. Please try a different search term.'));
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError(translate('Could not find location. Please try a different search term.'));
+            }
             console.error(err);
         } finally {
             setIsLoading(false);
-            if (!isInitialLoad) {
-                setSearchQuery('');
-            }
+            if (searchQuery) setSearchQuery('');
         }
-    }, [translate]);
-    
-    const initializeLocation = useCallback(async () => {
-        // 1. Check for user-saved default in localStorage
-        try {
-            const savedLocation = localStorage.getItem('defaultWeatherLocation');
-            if (savedLocation) {
-                const parsed = JSON.parse(savedLocation);
-                setDefaultLocation(parsed);
-                setCurrentLocation(parsed);
-                setZoom(7);
-                setIsLoading(false);
-                return;
-            }
-        } catch (e) {
-            console.error("Failed to parse saved location", e);
+    }, [translate, searchQuery]);
+
+    const handleGetMyLocation = useCallback(() => {
+        if (!navigator.geolocation) {
+            setError(translate('Geolocation is not supported by your browser.'));
+            return;
         }
 
-        // 2. Use institution address if available
-        if (institution.address) {
-            const parts = institution.address.split(',');
-            const generalLocation = (parts.length > 1 ? parts.slice(-2).join(',') : institution.address)
-                .replace(/-\s*\d+/, '')       // Removes Indian PIN codes like "- 110022"
-                .replace(/\b\d{5,6}\b/g, '') // Removes US-style ZIP codes
-                .replace(/,/g, ' ')           // Replace commas with spaces
-                .replace(/\s+/g, ' ')         // Collapse multiple spaces
-                .trim();
-            
-            if (generalLocation) {
-                await handleSearch(generalLocation, true);
-                return;
-            }
-        }
-
-        // 3. Fallback to user's current geolocation
-        if (navigator.geolocation) {
-            setIsLoading(true);
-            setError(null);
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    try {
-                        const locationName = await getLocationNameForCoordinates(latitude, longitude);
-                        setCurrentLocation({ name: locationName, lat: latitude, lon: longitude });
-                        setZoom(7);
-                    } catch (err) {
-                        setError(translate('Could not determine your location name. Please search for a location manually.'));
-                        setCurrentLocation({ name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`, lat: latitude, lon: longitude });
-                        setZoom(7);
-                    } finally {
-                        setIsLoading(false);
+        setIsLoading(true);
+        setError(null);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const locationName = await getLocationNameForCoordinates(latitude, longitude);
+                    setCurrentLocation({ name: locationName, lat: latitude, lon: longitude });
+                    setZoom(10);
+                } catch (err) {
+                    if (err instanceof Error) {
+                        setError(err.message);
+                    } else {
+                        setError(translate('Could not determine your location name.'));
                     }
-                },
-                (err) => {
-                    console.error("Geolocation error:", err);
-                    setError(translate('Could not access your location. Please enable location services or search for a location manually.'));
-                    setCurrentLocation(null);
+                    setCurrentLocation({ name: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`, lat: latitude, lon: longitude });
+                    setZoom(10);
+                } finally {
                     setIsLoading(false);
                 }
-            );
-        } else {
-            // Geolocation not supported, and no other info available.
-            setError(translate('Could not determine your location. Please search for a location manually.'));
-            setCurrentLocation(null);
-            setIsLoading(false);
-        }
-    }, [institution.address, handleSearch, translate]);
+            },
+            (err) => {
+                console.error("Geolocation error:", err);
+                setError(translate('Could not access your location. Please enable location services or search for a location manually.'));
+                setIsLoading(false);
+            }
+        );
+    }, [translate]);
 
+    // Effect for initial location loading
     useEffect(() => {
-        initializeLocation();
-    }, [initializeLocation]);
+        const initializeLocation = () => {
+            if (!navigator.geolocation) {
+                setError(translate('Geolocation not supported. Showing institution location.'));
+                const fallbackLocation = user.institutionAddress || user.institutionName;
+                handleSearch(fallbackLocation);
+                return;
+            }
 
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    handleGetMyLocation(); // On success, get the location details
+                },
+                (err) => {
+                    console.error("Initial geolocation error:", err);
+                    setError(translate('Location access denied. Showing institution location as fallback.'));
+                    const fallbackLocation = user.institutionAddress || user.institutionName;
+                    handleSearch(fallbackLocation);
+                }
+            );
+        };
+        initializeLocation();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         handleSearch(searchQuery);
     };
-
-    const handleSetDefault = () => {
-        if (currentLocation) {
-            localStorage.setItem('defaultWeatherLocation', JSON.stringify(currentLocation));
-            setDefaultLocation(currentLocation);
-        }
-    };
-
-    const handleClearDefault = useCallback(() => {
-        localStorage.removeItem('defaultWeatherLocation');
-        setDefaultLocation(null);
-        // Re-run the initialization logic to fall back to institution/geolocation
-        initializeLocation();
-    }, [initializeLocation]);
     
     const handleCampSelect = useCallback((camp: ReliefCamp) => {
         if (camp.latitude && camp.longitude) {
@@ -162,6 +138,7 @@ const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
 
     const headerText = translate('Live Wind & Weather Map');
     const subHeaderText = translate('Search for any location worldwide to see real-time meteorological data. Pan and zoom on the map for more detail.');
+    const windyTheme = theme === 'dark' ? 'dark' : 'light';
 
     useEffect(() => {
         const textsToRead: TTSText[] = [
@@ -170,11 +147,9 @@ const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
         ];
         registerTexts(textsToRead);
     }, [headerText, subHeaderText, registerTexts]);
-    
-    const isCurrentLocationDefault = defaultLocation && currentLocation && defaultLocation.name === currentLocation.name;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col">
             <div className="mb-4">
                 <h1 
                     id="windy-map-header" 
@@ -207,27 +182,18 @@ const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
                         {isLoading ? translate('Searching...') : translate('Search')}
                     </button>
                 </form>
-                {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+                {error && <ErrorMessage message={error} />}
                 
-                {currentLocation && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">{translate('Showing data for:')} {currentLocation.name}</span>
-                        {isCurrentLocationDefault ? (
-                            <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-full">
-                                <StarIcon className="h-4 w-4" /> {translate('Default')}
-                            </span>
-                        ) : (
-                             <button onClick={handleSetDefault} className="flex items-center gap-1 px-2 py-1 bg-amber-400 hover:bg-amber-500 text-amber-900 font-semibold dark:bg-amber-500 dark:hover:bg-amber-600 dark:text-amber-900 rounded-full transition-colors">
-                                <StarIcon className="h-4 w-4" /> {translate('Set as Default')}
-                            </button>
-                        )}
-                        {defaultLocation && (
-                             <button onClick={handleClearDefault} className="flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full">
-                                <LocationIcon className="h-4 w-4" /> {translate('Use Profile Location')}
-                            </button>
-                        )}
-                    </div>
-                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                     <button onClick={handleGetMyLocation} className="flex items-center gap-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-200 rounded-full transition-colors">
+                        <LocationIcon className="h-4 w-4" /> {translate('Use My Current Location')}
+                    </button>
+                    {currentLocation && (
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                            {translate('Showing data for:')} {currentLocation.name}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {currentLocation && <LocationAlerts location={currentLocation.name} />}
@@ -256,13 +222,13 @@ const WindyMap: React.FC<WindyMapProps> = ({ institution }) => {
                 <WeatherForecast locationName={currentLocation.name} />
             )}
 
-            <div className="h-[70vh] w-full bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+            <div className="w-full aspect-video max-h-[500px] bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
                  {currentLocation ? (
                     <iframe
-                        key={`${currentLocation.name}-${zoom}`} // Force re-render on location/zoom change
+                        key={`${currentLocation.name}-${zoom}-${theme}`} // Force re-render on location/zoom/theme change
                         width="100%"
                         height="100%"
-                        src={`https://embed.windy.com/embed.html?lat=${currentLocation.lat}&lon=${currentLocation.lon}&detailLat=${currentLocation.lat}&detailLon=${currentLocation.lon}&width=100%&height=100%&zoom=${zoom}&level=surface&overlay=wind&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B°C&radarRange=-1`}
+                        src={`https://embed.windy.com/embed.html?lat=${currentLocation.lat}&lon=${currentLocation.lon}&detailLat=${currentLocation.lat}&detailLon=${currentLocation.lon}&width=100%&height=100%&zoom=${zoom}&level=surface&overlay=wind&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B°C&radarRange=-1&theme=${windyTheme}`}
                         frameBorder="0"
                         title={headerText}
                         allowFullScreen

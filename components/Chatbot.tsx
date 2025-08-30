@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { useTranslate } from '../contexts/TranslationContext';
+import { useTTS, TTS_DEFAULTS } from '../contexts/TTSContext';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { XIcon } from './icons/XIcon';
 import { SendIcon } from './icons/SendIcon';
@@ -10,6 +11,7 @@ import VoiceInputButton from './VoiceInputButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { SpeakerIcon } from './icons/SpeakerIcon';
 import { StopIcon } from './icons/StopIcon';
+import { SettingsIcon } from './icons/SettingsIcon';
 import type { AvatarStyle } from '../types';
 import { handleApiError } from '../services/apiErrorHandler';
 
@@ -89,6 +91,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarS
     const { translate } = useTranslate();
     const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
     const synthRef = useRef<SpeechSynthesis | null>(null);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const settingsRef = useRef<HTMLDivElement>(null);
+    const { rate, pitch, setRate, setPitch } = useTTS();
 
 
     const handleTranscript = useCallback((t: string) => {
@@ -111,6 +116,18 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarS
             setSpeakingMessageIndex(null);
         }
     }, [isOpen]);
+    
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+                setIsSettingsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
@@ -161,6 +178,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarS
             }
 
             const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = rate;
+            utterance.pitch = pitch;
             utterance.onstart = () => setSpeakingMessageIndex(index);
             utterance.onend = () => setSpeakingMessageIndex(null);
             utterance.onerror = (e) => {
@@ -175,7 +194,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarS
             };
             synthRef.current.speak(utterance);
         }
-    }, [speakingMessageIndex]);
+    }, [speakingMessageIndex, rate, pitch]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -225,9 +244,54 @@ const Chatbot: React.FC<ChatbotProps> = ({ isOpen, onClose, currentPage, avatarS
                         <Avatar mood="neutral" className="h-10 w-10 text-teal-600 dark:text-teal-400" style={avatarStyle} />
                         <h2 id="chatbot-title" className="text-xl font-bold text-gray-800 dark:text-white">{translate('Safety Assistant')}</h2>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label={translate('Close chat')}>
-                        <XIcon className="h-6 w-6" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                        <div className="relative" ref={settingsRef}>
+                            <button
+                                onClick={() => setIsSettingsOpen(prev => !prev)}
+                                className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                aria-label={translate('Open TTS settings')}
+                            >
+                                <SettingsIcon className="h-6 w-6" />
+                            </button>
+                            {isSettingsOpen && (
+                                <div className="absolute right-0 -top-2 transform translate-y-[-100%] mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 ring-1 ring-black ring-opacity-5 z-20 space-y-4">
+                                    <div>
+                                        <label htmlFor="chatbot-tts-rate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {translate('Speed')}: <span className="font-bold">{rate.toFixed(1)}x</span>
+                                        </label>
+                                        <input
+                                            id="chatbot-tts-rate"
+                                            type="range"
+                                            min={TTS_DEFAULTS.minRate}
+                                            max={TTS_DEFAULTS.maxRate}
+                                            step="0.1"
+                                            value={rate}
+                                            onChange={(e) => setRate(parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-teal-600"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="chatbot-tts-pitch" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {translate('Pitch')}: <span className="font-bold">{pitch.toFixed(1)}</span>
+                                        </label>
+                                        <input
+                                            id="chatbot-tts-pitch"
+                                            type="range"
+                                            min={TTS_DEFAULTS.minPitch}
+                                            max={TTS_DEFAULTS.maxPitch}
+                                            step="0.1"
+                                            value={pitch}
+                                            onChange={(e) => setPitch(parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-teal-600"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <button onClick={onClose} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label={translate('Close chat')}>
+                            <XIcon className="h-6 w-6" />
+                        </button>
+                    </div>
                 </header>
 
                 {/* Message Area */}

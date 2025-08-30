@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { User, Institution, AvatarStyle } from '../types';
+import type { User, AvatarStyle } from '../types';
 import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, TTSText } from '../contexts/TTSContext';
@@ -14,16 +14,16 @@ import { TrashIcon } from './icons/TrashIcon';
 import VoiceInputButton from './VoiceInputButton';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import Avatar from './Avatar';
+import { HomeIcon } from './icons/HomeIcon';
 
 interface ProfileProps {
   user: User;
-  institution: Institution;
   onBack: () => void;
-  onSave: (updatedUser: User, updatedInstitution: Institution) => void;
+  onSave: (updatedUser: User) => void;
   backButtonText?: string;
 }
 
-const AVATAR_STYLES: AvatarStyle[] = ['default', 'teal', 'amber', 'rose'];
+const AVATAR_STYLES: AvatarStyle[] = ['default', 'amber', 'rose'];
 
 const InfoRow: React.FC<{
     icon: React.ReactNode;
@@ -39,37 +39,39 @@ const InfoRow: React.FC<{
     isVoiceSupported: boolean;
     isVoiceListening: boolean;
     onToggleVoice: () => void;
-}> = ({ icon, label, value, isEditing, name, onChange, id, isHighlighted, labelId, labelIsHighlighted, isVoiceSupported, isVoiceListening, onToggleVoice }) => (
-    <div className="flex items-start py-4">
-        <div className="text-teal-500 mr-4 mt-1 flex-shrink-0">{icon}</div>
-        <div className="w-full">
-            <p id={labelId} className={`text-sm text-gray-500 dark:text-gray-400 ${labelIsHighlighted ? 'tts-highlight' : ''}`}>{label}</p>
-            {isEditing ? (
-                 <div className="relative mt-1">
-                    <input
-                        type="text"
-                        name={name}
-                        value={value}
-                        onChange={(e) => onChange(name, e.target.value)}
-                        className="w-full text-lg font-semibold text-gray-800 dark:text-white bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:border-teal-500 transition-colors pr-10"
-                        aria-labelledby={labelId}
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center">
-                        {isVoiceSupported && <VoiceInputButton onTranscript={() => {}} isListening={isVoiceListening} toggleListening={onToggleVoice} />}
+}> = ({ icon, label, value, isEditing, name, onChange, id, isHighlighted, labelId, labelIsHighlighted, isVoiceSupported, isVoiceListening, onToggleVoice }) => {
+    const { translate } = useTranslate();
+    return (
+        <div className="flex items-start py-4">
+            <div className="text-teal-500 mr-4 mt-1 flex-shrink-0">{icon}</div>
+            <div className="w-full">
+                <p id={labelId} className={`text-sm text-gray-500 dark:text-gray-400 ${labelIsHighlighted ? 'tts-highlight' : ''}`}>{label}</p>
+                {isEditing ? (
+                    <div className="relative mt-1">
+                        <input
+                            type="text"
+                            name={name}
+                            value={value}
+                            onChange={(e) => onChange(name, e.target.value)}
+                            className="w-full text-lg font-semibold text-gray-800 dark:text-white bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:border-teal-500 transition-colors pr-10"
+                            aria-labelledby={labelId}
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center">
+                            {isVoiceSupported && <VoiceInputButton onTranscript={() => {}} isListening={isVoiceListening} toggleListening={onToggleVoice} />}
+                        </div>
                     </div>
-                </div>
-            ) : (
-                <p id={id} className={`text-lg font-semibold text-gray-800 dark:text-white break-words ${isHighlighted ? 'tts-highlight' : ''}`}>{value}</p>
-            )}
+                ) : (
+                    <p id={id} className={`text-lg font-semibold text-gray-800 dark:text-white break-words ${isHighlighted ? 'tts-highlight' : ''}`}>{value || translate('Not set')}</p>
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 
-const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, backButtonText }) => {
+const Profile: React.FC<ProfileProps> = ({ user, onBack, onSave, backButtonText }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editableUser, setEditableUser] = useState<User>(user);
-    const [editableInstitution, setEditableInstitution] = useState<Institution>(institution);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
@@ -79,26 +81,16 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
     const handleTranscript = useCallback((transcript: string) => {
         if (!voiceTarget) return;
 
-        const updateFunctions: Record<string, (prev: any) => any> = {
-            userName: (prev: User) => ({ ...prev, name: prev.name ? prev.name + transcript : transcript }),
-            userClass: (prev: User) => ({ ...prev, class: prev.class ? prev.class + transcript : transcript }),
-            instName: (prev: Institution) => ({ ...prev, name: prev.name ? prev.name + transcript : transcript }),
-            address: (prev: Institution) => ({ ...prev, address: prev.address ? prev.address + transcript : transcript }),
-            phoneNumber: (prev: Institution) => ({ ...prev, phoneNumber: prev.phoneNumber ? prev.phoneNumber + transcript : transcript }),
-        };
+        setEditableUser(prev => {
+            const newText = prev[voiceTarget as keyof User] ? (prev[voiceTarget as keyof User] as string) + transcript : transcript;
+            return { ...prev, [voiceTarget]: newText };
+        });
 
-        if (voiceTarget in updateFunctions) {
-            if (['userName', 'userClass'].includes(voiceTarget)) {
-                setEditableUser(updateFunctions[voiceTarget]);
-            } else {
-                setEditableInstitution(updateFunctions[voiceTarget]);
-            }
-        }
     }, [voiceTarget]);
 
     const { isListening, toggleListening, isSupported } = useSpeechRecognition(handleTranscript);
 
-    const toggleListeningFor = (target: string) => {
+    const toggleListeningFor = (target: keyof User) => {
         if (isListening && voiceTarget !== target) {
             return;
         }
@@ -109,16 +101,31 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
 
     const infoHeader = user.role === UserRole.TEACHER 
         ? translate('Teacher Information') 
+        : user.role === UserRole.GOVERNMENT_OFFICIAL
+        ? translate('Official Information')
         : translate('Student Information');
 
-    const classLabel = user.role === UserRole.TEACHER ? translate('Department / Subject') : translate('Class');
+    const classLabel = user.role === UserRole.TEACHER 
+        ? translate('Department / Subject') 
+        : user.role === UserRole.GOVERNMENT_OFFICIAL
+        ? translate('Department Name')
+        : translate('Class / Grade');
+        
+    const institutionLabel = user.role === UserRole.GOVERNMENT_OFFICIAL
+        ? translate('Ministry Name')
+        : translate('Institution Name');
+
+    const institutionDetailsHeader = user.role === UserRole.GOVERNMENT_OFFICIAL
+        ? translate('Ministry Details')
+        : translate('Institution Details');
+
+
     const backText = backButtonText || translate('Back to Dashboard');
 
 
     useEffect(() => {
         setEditableUser(user);
-        setEditableInstitution(institution);
-    }, [user, institution]);
+    }, [user]);
 
     useEffect(() => {
         if (!isEditing) {
@@ -128,19 +135,24 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
                 { id: 'profile-info-header', text: infoHeader },
                 { id: 'profile-class-label', text: classLabel },
                 { id: 'profile-class', text: translate(user.class) },
-                { id: 'profile-inst-details-header', text: translate('Institution Details') },
-                { id: 'profile-inst-name-label', text: translate('Institution Name') },
-                { id: 'profile-inst-name', text: translate(institution.name) },
+                { id: 'profile-home-address-header', text: translate('Home / Residence Details') },
+                { id: 'profile-home-address-desc', text: translate('This address is used for location-specific emergency alerts on your dashboard. It is kept private.') },
+                { id: 'profile-home-address-label', text: translate('Home Address') },
+                { id: 'profile-home-address', text: user.homeAddress || translate('Not set') },
+                { id: 'profile-inst-details-header', text: institutionDetailsHeader },
+                { id: 'profile-inst-name-label', text: institutionLabel },
+                { id: 'profile-inst-name', text: translate(user.institutionName) },
+                { id: 'profile-inst-address-header', text: translate('Institution Address') },
                 { id: 'profile-inst-address-label', text: translate('Address') },
-                { id: 'profile-inst-address', text: translate(institution.address) },
+                { id: 'profile-inst-address', text: user.institutionAddress || translate('Not set') },
                 { id: 'profile-inst-contact-label', text: translate('Contact') },
-                { id: 'profile-inst-contact', text: institution.phoneNumber },
+                { id: 'profile-inst-contact', text: user.institutionPhone || translate('Not set') },
             ];
             registerTexts(textsToRead);
         } else {
             registerTexts([]);
         }
-    }, [user, institution, isEditing, registerTexts, translate, infoHeader, classLabel]);
+    }, [user, isEditing, registerTexts, translate, infoHeader, classLabel, institutionLabel, institutionDetailsHeader]);
 
 
     const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,28 +176,20 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
         setEditableUser(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleInstitutionChange = (name: string, value: string) => {
-        setEditableInstitution(prev => ({ ...prev, [name]: value }));
-    };
-
     const handleCancel = () => {
         if (editableUser.avatarUrl && editableUser.avatarUrl.startsWith('blob:')) {
             URL.revokeObjectURL(editableUser.avatarUrl);
         }
         setEditableUser(user);
-        setEditableInstitution(institution);
         setIsEditing(false);
     };
 
     const handleSave = () => {
         let finalUser = { ...editableUser };
-        // If the avatarUrl is a blob, it means it's a temporary new image.
-        // In a real app, you would upload this blob to a server and get back a permanent URL.
-        // For this demo, we'll keep the blob URL, but if the user removed the image, ensure it's an empty string.
         if (editableUser.avatarUrl === '') {
              finalUser.avatarUrl = '';
         }
-        onSave(finalUser, editableInstitution);
+        onSave(finalUser);
         setIsEditing(false);
     };
     
@@ -290,7 +294,7 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
                                         aria-label={translate("Your Name")}
                                     />
                                     <div className="absolute inset-y-0 right-0 flex items-center">
-                                        {isSupported && <VoiceInputButton onTranscript={() => {}} isListening={isListening && voiceTarget === 'userName'} toggleListening={() => toggleListeningFor('userName')} />}
+                                        {isSupported && <VoiceInputButton onTranscript={() => {}} isListening={isListening && voiceTarget === 'name'} toggleListening={() => toggleListeningFor('name')} />}
                                     </div>
                                </div>
                             ) : (
@@ -301,78 +305,112 @@ const Profile: React.FC<ProfileProps> = ({ user, institution, onBack, onSave, ba
                     </div>
                 </div>
 
+                {/* Personal Information Section */}
                 <div className="border-t border-gray-200 dark:border-gray-700">
-                    <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                        <div>
-                           <h2 id="profile-info-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-info-header' ? 'tts-highlight' : ''}`}>{infoHeader}</h2>
-                           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                                <InfoRow 
-                                    id="profile-class"
-                                    labelId="profile-class-label"
-                                    isHighlighted={currentlySpokenId === 'profile-class'} 
-                                    labelIsHighlighted={currentlySpokenId === 'profile-class-label'}
-                                    icon={<UserCircleIcon className="h-6 w-6" />}
-                                    label={classLabel}
-                                    value={isEditing ? editableUser.class : user.class}
-                                    name="class"
-                                    onChange={handleUserChange}
-                                    isEditing={isEditing}
-                                    isVoiceSupported={isSupported}
-                                    isVoiceListening={isListening && voiceTarget === 'userClass'}
-                                    onToggleVoice={() => toggleListeningFor('userClass')}
-                                />
-                           </div>
+                    <div className="p-6 md:p-8">
+                        <h2 id="profile-info-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-info-header' ? 'tts-highlight' : ''}`}>{infoHeader}</h2>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            <InfoRow 
+                                id="profile-class"
+                                labelId="profile-class-label"
+                                isHighlighted={currentlySpokenId === 'profile-class'} 
+                                labelIsHighlighted={currentlySpokenId === 'profile-class-label'}
+                                icon={<UserCircleIcon className="h-6 w-6" />}
+                                label={classLabel}
+                                value={editableUser.class}
+                                name="class"
+                                onChange={handleUserChange}
+                                isEditing={isEditing}
+                                isVoiceSupported={isSupported}
+                                isVoiceListening={isListening && voiceTarget === 'class'}
+                                onToggleVoice={() => toggleListeningFor('class')}
+                            />
                         </div>
-                        <div>
-                            <h2 id="profile-inst-details-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-inst-details-header' ? 'tts-highlight' : ''}`}>{translate('Institution Details')}</h2>
-                            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                                <InfoRow
-                                    id="profile-inst-name"
-                                    labelId="profile-inst-name-label"
-                                    isHighlighted={currentlySpokenId === 'profile-inst-name'}
-                                    labelIsHighlighted={currentlySpokenId === 'profile-inst-name-label'}
-                                    icon={<SchoolIcon className="h-6 w-6" />}
-                                    label={translate('Institution Name')}
-                                    value={isEditing ? editableInstitution.name : institution.name}
-                                    name="name"
-                                    onChange={handleInstitutionChange}
-                                    isEditing={isEditing} 
-                                    isVoiceSupported={isSupported}
-                                    isVoiceListening={isListening && voiceTarget === 'instName'}
-                                    onToggleVoice={() => toggleListeningFor('instName')}
-                                />
-                                <InfoRow
-                                    id="profile-inst-address"
-                                    labelId="profile-inst-address-label"
-                                    isHighlighted={currentlySpokenId === 'profile-inst-address'}
-                                    labelIsHighlighted={currentlySpokenId === 'profile-inst-address-label'}
-                                    icon={<LocationIcon className="h-6 w-6" />}
-                                    label={translate('Address')}
-                                    value={isEditing ? editableInstitution.address : institution.address}
-                                    name="address"
-                                    onChange={handleInstitutionChange}
-                                    isEditing={isEditing}
-                                    isVoiceSupported={isSupported}
-                                    isVoiceListening={isListening && voiceTarget === 'address'}
-                                    onToggleVoice={() => toggleListeningFor('address')}
-                                />
-                                <InfoRow
-                                    id="profile-inst-contact"
-                                    labelId="profile-inst-contact-label"
-                                    isHighlighted={currentlySpokenId === 'profile-inst-contact'}
-                                    labelIsHighlighted={currentlySpokenId === 'profile-inst-contact-label'}
-                                    icon={<PhoneIcon className="h-6 w-6" />}
-                                    label={translate('Contact')}
-                                    value={isEditing ? editableInstitution.phoneNumber : institution.phoneNumber}
-                                    name="phoneNumber"
-                                    onChange={handleInstitutionChange}
-                                    isEditing={isEditing}
-                                    isVoiceSupported={isSupported}
-                                    isVoiceListening={isListening && voiceTarget === 'phoneNumber'}
-                                    onToggleVoice={() => toggleListeningFor('phoneNumber')}
-                                />
-                            </div>
+                    </div>
+                </div>
+
+                {/* Institution Details Section */}
+                <div className="border-t border-gray-200 dark:border-gray-700">
+                    <div className="p-6 md:p-8">
+                        <h2 id="profile-inst-details-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-inst-details-header' ? 'tts-highlight' : ''}`}>{institutionDetailsHeader}</h2>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            <InfoRow
+                                id="profile-inst-name"
+                                labelId="profile-inst-name-label"
+                                isHighlighted={currentlySpokenId === 'profile-inst-name'}
+                                labelIsHighlighted={currentlySpokenId === 'profile-inst-name-label'}
+                                icon={<SchoolIcon className="h-6 w-6" />}
+                                label={institutionLabel}
+                                value={editableUser.institutionName}
+                                name="institutionName"
+                                onChange={handleUserChange}
+                                isEditing={isEditing} 
+                                isVoiceSupported={isSupported}
+                                isVoiceListening={isListening && voiceTarget === 'institutionName'}
+                                onToggleVoice={() => toggleListeningFor('institutionName')}
+                            />
+                            <InfoRow
+                                id="profile-inst-contact"
+                                labelId="profile-inst-contact-label"
+                                isHighlighted={currentlySpokenId === 'profile-inst-contact'}
+                                labelIsHighlighted={currentlySpokenId === 'profile-inst-contact-label'}
+                                icon={<PhoneIcon className="h-6 w-6" />}
+                                label={translate('Contact')}
+                                value={editableUser.institutionPhone ?? ''}
+                                name="institutionPhone"
+                                onChange={handleUserChange}
+                                isEditing={isEditing}
+                                isVoiceSupported={isSupported}
+                                isVoiceListening={isListening && voiceTarget === 'institutionPhone'}
+                                onToggleVoice={() => toggleListeningFor('institutionPhone')}
+                            />
                         </div>
+                    </div>
+                </div>
+
+                {/* Institution Address Section */}
+                <div className="border-t border-gray-200 dark:border-gray-700">
+                    <div className="p-6 md:p-8">
+                        <h2 id="profile-inst-address-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-inst-address-header' ? 'tts-highlight' : ''}`}>{user.role === UserRole.GOVERNMENT_OFFICIAL ? translate('Ministry Address') : translate('Institution Address')}</h2>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            <InfoRow
+                                id="profile-inst-address"
+                                labelId="profile-inst-address-label"
+                                isHighlighted={currentlySpokenId === 'profile-inst-address'}
+                                labelIsHighlighted={currentlySpokenId === 'profile-inst-address-label'}
+                                icon={<LocationIcon className="h-6 w-6" />}
+                                label={translate('Address')}
+                                value={editableUser.institutionAddress ?? ''}
+                                name="institutionAddress"
+                                onChange={handleUserChange}
+                                isEditing={isEditing}
+                                isVoiceSupported={isSupported}
+                                isVoiceListening={isListening && voiceTarget === 'institutionAddress'}
+                                onToggleVoice={() => toggleListeningFor('institutionAddress')}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                 <div className="p-6 md:p-8 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <h2 id="profile-home-address-header" className={`text-xl font-bold text-gray-800 dark:text-white mb-2 ${currentlySpokenId === 'profile-home-address-header' ? 'tts-highlight' : ''}`}>{translate('Home / Residence Details')}</h2>
+                    <p id="profile-home-address-desc" className={`text-sm text-gray-500 dark:text-gray-400 mb-2 ${currentlySpokenId === 'profile-home-address-desc' ? 'tts-highlight' : ''}`}>{translate('This address is used for location-specific emergency alerts on your dashboard. It is kept private.')}</p>
+                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                        <InfoRow 
+                            id="profile-home-address"
+                            labelId="profile-home-address-label"
+                            isHighlighted={currentlySpokenId === 'profile-home-address'} 
+                            labelIsHighlighted={currentlySpokenId === 'profile-home-address-label'}
+                            icon={<HomeIcon className="h-6 w-6" />}
+                            label={translate('Home Address')}
+                            value={editableUser.homeAddress ?? ''}
+                            name="homeAddress"
+                            onChange={handleUserChange}
+                            isEditing={isEditing}
+                            isVoiceSupported={isSupported}
+                            isVoiceListening={isListening && voiceTarget === 'homeAddress'}
+                            onToggleVoice={() => toggleListeningFor('homeAddress')}
+                        />
                     </div>
                 </div>
                 {isEditing && (

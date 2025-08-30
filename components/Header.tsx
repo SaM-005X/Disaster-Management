@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { User, Institution } from '../types';
 import { useTranslate, SUPPORTED_LANGUAGES } from '../contexts/TranslationContext';
-import { useTTS } from '../contexts/TTSContext';
+import { useTTS, TTS_DEFAULTS } from '../contexts/TTSContext';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { UserCircleIcon } from './icons/UserCircleIcon';
 import { LogOutIcon } from './icons/LogOutIcon';
@@ -12,6 +12,7 @@ import { PlayIcon } from './icons/PlayIcon';
 import { PauseIcon } from './icons/PauseIcon';
 import { StopIcon } from './icons/StopIcon';
 import { MenuIcon } from './icons/MenuIcon';
+import { SettingsIcon } from './icons/SettingsIcon';
 import ConnectivityStatusIndicator from './ConnectivityStatusIndicator';
 
 interface HeaderProps {
@@ -28,10 +29,12 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLogout, theme, toggleTheme, onMenuClick, showMenuButton }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+  const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
+  const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const { language, setLanguage, isTranslating, translate } = useTranslate();
-  const { toggleReadAloud, stopReadAloud, isPlaying, isPaused, hasQueue, isSupported } = useTTS();
+  const { toggleReadAloud, stopReadAloud, isPlaying, isPaused, hasQueue, isSupported, rate, pitch, setRate, setPitch } = useTTS();
 
   const handleClickOutside = (event: MouseEvent) => {
     if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
@@ -39,6 +42,9 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
     }
     if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
       setIsLangDropdownOpen(false);
+    }
+    if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(event.target as Node)) {
+      setIsSettingsDropdownOpen(false);
     }
   };
 
@@ -86,6 +92,49 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
                   <StopIcon className="h-6 w-6" />
                 </button>
               )}
+               <div className="relative" ref={settingsDropdownRef}>
+                <button
+                    onClick={() => setIsSettingsDropdownOpen(prev => !prev)}
+                    className={buttonBaseClasses}
+                    aria-label={translate('Open TTS settings')}
+                >
+                    <SettingsIcon className="h-6 w-6" />
+                </button>
+                {isSettingsDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 ring-1 ring-black ring-opacity-5 z-20 space-y-4">
+                        <div>
+                            <label htmlFor="tts-rate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {translate('Speed')}: <span className="font-bold">{rate.toFixed(1)}x</span>
+                            </label>
+                            <input
+                                id="tts-rate"
+                                type="range"
+                                min={TTS_DEFAULTS.minRate}
+                                max={TTS_DEFAULTS.maxRate}
+                                step="0.1"
+                                value={rate}
+                                onChange={(e) => setRate(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-teal-600"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="tts-pitch" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {translate('Pitch')}: <span className="font-bold">{pitch.toFixed(1)}</span>
+                            </label>
+                            <input
+                                id="tts-pitch"
+                                type="range"
+                                min={TTS_DEFAULTS.minPitch}
+                                max={TTS_DEFAULTS.maxPitch}
+                                step="0.1"
+                                value={pitch}
+                                onChange={(e) => setPitch(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-teal-600"
+                            />
+                        </div>
+                    </div>
+                )}
+                </div>
             </div>
           )}
 

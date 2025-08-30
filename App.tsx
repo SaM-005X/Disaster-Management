@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { MODULES, QUIZZES } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, Institution, LabScore, StudentProgress, AvatarStyle } from './types';
+import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -25,31 +25,38 @@ import AboutUs from './components/AboutUs';
 import ProgressTracker from './components/ProgressTracker';
 import AlertsBanner from './components/AlertsBanner';
 import WindyMap from './components/WindyMap';
+import TectonicMap from './components/TectonicMap';
 import { useTranslate } from './contexts/TranslationContext';
 import OfflineStatusToast from './components/OfflineStatusToast';
-import { supabase, fetchUserProfile, fetchInstitution, fetchStudentProgress, fetchStudentsForInstitution, fetchProgressForStudents, updateProfile, addStudent, updateStudent, deleteStudent } from './services/supabaseClient';
-// Fix: Import the 'News' component.
 import News from './components/News';
+import { fetchHistoricalDisasters } from './services/historicalDisasterService';
 
-
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
 export type LabView = 'lab_dashboard' | 'simulation' | 'final_certificate' | 'solutions';
-type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark';
 export type AvatarMood = 'neutral' | 'happy' | 'thinking' | 'encouraging';
+
+const MOCK_RESOURCES: Resource[] = [
+  { id: 'res-1', type: 'Medical Kits' as ResourceType, location: 'New Delhi', status: 'Available' as ResourceStatus, quantity: 500, lastUpdated: new Date().toISOString() },
+  { id: 'res-2', type: 'Rescue Teams' as ResourceType, location: 'Mumbai', status: 'Deployed' as ResourceStatus, quantity: 20, lastUpdated: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+  { id: 'res-3', type: 'Food Supplies' as ResourceType, location: 'Chennai', status: 'Available' as ResourceStatus, quantity: 10000, lastUpdated: new Date().toISOString() },
+  { id: 'res-4', type: 'Water Tankers' as ResourceType, location: 'Kolkata', status: 'Low Stock' as ResourceStatus, quantity: 15, lastUpdated: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
+  { id: 'res-5', type: 'Shelter Units' as ResourceType, location: 'Bengaluru', status: 'Available' as ResourceStatus, quantity: 250, lastUpdated: new Date().toISOString() },
+];
 
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentInstitution, setCurrentInstitution] = useState<Institution | null>(null);
   const [studentProgress, setStudentProgress] = useState<StudentProgress | undefined>(undefined);
-
-  // State for teacher's classroom view
-  const [studentsInClass, setStudentsInClass] = useState<User[]>([]);
-  const [studentProgressData, setStudentProgressData] = useState<Record<string, StudentProgress>>({});
+  const [allProgressData, setAllProgressData] = useState<Record<string, StudentProgress>>({});
   
-  const [isLoading, setIsLoading] = useState(true);
-  const isAuthenticated = !!currentUser && !!currentInstitution;
+  // Government Official Widgets State
+  const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
+  const [historicalDisasters, setHistoricalDisasters] = useState<HistoricalDisaster[]>([]);
+
+  const isAuthenticated = !!currentUser;
 
   // Navigation State
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -72,7 +79,7 @@ const App: React.FC = () => {
   // Theme State
   const [theme, setTheme] = useState<Theme>('light');
 
-  // Panic Button State
+  // Panic Button & Location State
   const [isPanicModalOpen, setIsPanicModalOpen] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -94,97 +101,139 @@ const App: React.FC = () => {
   // Hooks
   const { translate } = useTranslate();
 
-  // Supabase Auth Listener
+  // --- STATE PERSISTENCE & INITIALIZATION ---
+  // Load state from storage on initial mount
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        setIsLoading(true);
-        if (session?.user) {
-            let profile = null;
-            let institution = null;
-            let progress = undefined;
-            let attempt = 0;
-            const maxAttempts = 3;
+    try {
+      // Persistent data from localStorage
+      const storedUsersJSON = localStorage.getItem('allUsers');
+      const storedUsers = storedUsersJSON ? JSON.parse(storedUsersJSON) : [];
+      setAllUsers(storedUsers);
 
-            // Retry loop to patiently wait for the database trigger to create the profile.
-            while (!profile && attempt < maxAttempts) {
-                attempt++;
-                console.log(`Attempting to fetch user profile, attempt #${attempt}`);
-                profile = await fetchUserProfile(session.user.id);
-                if (!profile && attempt < maxAttempts) {
-                    // Wait with an increasing delay (1s, 2s)
-                    await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-                }
-            }
+      const storedProgressJSON = localStorage.getItem('allProgressData');
+      const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
+      setAllProgressData(storedProgress);
 
-            if (profile) {
-                // Profile found, load the rest of the user's data.
-                institution = await fetchInstitution(profile.institutionId);
-                setAvatarStyle(profile.avatarStyle || 'default');
-                if (profile.role === UserRole.STUDENT) {
-                    progress = await fetchStudentProgress(profile.id);
-                }
-                setCurrentUser(profile);
-                setCurrentInstitution(institution);
-                setStudentProgress(progress);
-            } else {
-                // After multiple tries, the profile is still missing.
-                // Instead of logging out and causing a loop, we force the user into the app
-                // with partial data and show an alert. This guarantees entry into the site.
-                console.error("CRITICAL: User is authenticated but profile could not be found after multiple retries. This might indicate an issue with the `create_user_profile` database trigger.");
-                
-                const fallbackUser: User = {
-                    id: session.user.id,
-                    name: session.user.email || 'New User',
-                    role: UserRole.STUDENT, // Safe default
-                    institutionId: '', // Unknown
-                    class: 'Unknown', // Unknown
-                    avatarUrl: `https://picsum.photos/seed/${session.user.id}/100/100`,
-                    avatarStyle: 'default',
-                };
-                 const fallbackInstitution: Institution = {
-                    id: '',
-                    name: 'Unknown Institution',
-                    address: '',
-                    phoneNumber: '',
-                };
-                
-                setCurrentUser(fallbackUser);
-                setCurrentInstitution(fallbackInstitution);
-                setStudentProgress(undefined);
-                
-                // Alert the user about the situation.
-                alert("Welcome! We're having trouble loading your full profile right now, but we've logged you in. Some information may be missing. Please try visiting your Profile page to update your details.");
-            }
-
+      // Session data from sessionStorage
+      const storedUserJSON = sessionStorage.getItem('currentUser');
+      if (storedUserJSON) {
+        const user: User = JSON.parse(storedUserJSON);
+        
+        setCurrentUser(user);
+        setAvatarStyle(user.avatarStyle || 'default');
+        if (user.role === UserRole.STUDENT) {
+            setStudentProgress(storedProgress[user.id] || { quizScores: {}, labScores: {}, timeSpent: 0 });
         } else {
-            // No session, so clear all user-related state.
-            setCurrentUser(null);
-            setCurrentInstitution(null);
             setStudentProgress(undefined);
         }
-        setIsLoading(false);
-    });
 
-    return () => subscription.unsubscribe();
-  }, []);
+        // Restore navigation and content state
+        const storedPage = sessionStorage.getItem('currentPage');
+        if (storedPage) setCurrentPage(JSON.parse(storedPage));
+        
+        const storedDashboardView = sessionStorage.getItem('dashboardView');
+        if (storedDashboardView) setDashboardView(JSON.parse(storedDashboardView));
 
-  // Fetch classroom data if user is a teacher
+        const storedLabView = sessionStorage.getItem('labView');
+        if (storedLabView) setLabView(JSON.parse(storedLabView));
+        
+        const storedSelectedModule = sessionStorage.getItem('selectedModule');
+        if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
+        
+        const storedSelectedQuiz = sessionStorage.getItem('selectedQuiz');
+        if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
+
+        const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
+        if (storedLastQuizResult) setLastQuizResult(JSON.parse(storedLastQuizResult));
+      }
+    } catch (error) {
+      console.error("Failed to load state from storage:", error);
+      localStorage.clear();
+      sessionStorage.clear();
+    }
+  }, []); // Empty dependency array means this runs only once
+
+  // Save persistent data to localStorage when it changes
   useEffect(() => {
-    const fetchClassroomData = async () => {
-        if (currentUser && currentUser.role === UserRole.TEACHER && currentInstitution) {
-            const students = await fetchStudentsForInstitution(currentInstitution.id);
-            if (students.length > 0) {
-                const progress = await fetchProgressForStudents(students.map(s => s.id));
-                setStudentsInClass(students);
-                setStudentProgressData(progress);
-            } else {
-                setStudentsInClass([]);
-                setStudentProgressData({});
-            }
+    if (allUsers.length > 0) {
+        localStorage.setItem('allUsers', JSON.stringify(allUsers));
+    }
+  }, [allUsers]);
+
+  useEffect(() => {
+     if (Object.keys(allProgressData).length > 0) {
+        localStorage.setItem('allProgressData', JSON.stringify(allProgressData));
+    }
+  }, [allProgressData]);
+
+  // Save session data to sessionStorage when relevant state changes
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+        sessionStorage.setItem('currentPage', JSON.stringify(currentPage));
+        sessionStorage.setItem('dashboardView', JSON.stringify(dashboardView));
+        sessionStorage.setItem('labView', JSON.stringify(labView));
+        sessionStorage.setItem('selectedModule', JSON.stringify(selectedModule));
+        sessionStorage.setItem('selectedQuiz', JSON.stringify(selectedQuiz));
+        sessionStorage.setItem('lastQuizResult', JSON.stringify(lastQuizResult));
+      } catch (error) {
+        console.error("Failed to save session state:", error);
+      }
+    }
+  }, [currentUser, currentPage, dashboardView, labView, selectedModule, selectedQuiz, lastQuizResult]);
+
+  // Load historical disaster data once on mount
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+        try {
+            const data = await fetchHistoricalDisasters();
+            setHistoricalDisasters(data);
+        } catch (err) {
+            console.error("Failed to load historical disaster data:", err);
         }
     };
-    fetchClassroomData();
-  }, [currentUser, currentInstitution]);
+    loadHistoricalData();
+  }, []);
+
+  // Handle Login
+  const handleLogin = (user: User) => {
+       const userWithDefaults: User = {
+            ...user,
+            homeAddress: user.homeAddress ?? '',
+            institutionName: user.institutionName || 'My Institution',
+            institutionAddress: user.institutionAddress ?? '',
+            institutionPhone: user.institutionPhone ?? ''
+        };
+      setCurrentUser(userWithDefaults);
+      setAvatarStyle(user.avatarStyle || 'default');
+      
+      if (user.role === UserRole.STUDENT) {
+        setStudentProgress(allProgressData[user.id] || { quizScores: {}, labScores: {}, timeSpent: 0 });
+      } else {
+        setStudentProgress(undefined);
+      }
+  };
+  
+  // Handle Sign Up
+  const handleSignUpAndLogin = (newUserData: Omit<User, 'id' | 'avatarUrl' | 'rollNumber' | 'avatarStyle' | 'homeAddress' | 'institutionAddress' | 'institutionPhone'>) => {
+    const newUser: User = {
+      ...newUserData,
+      id: `user-${Date.now()}`,
+      avatarUrl: `https://picsum.photos/seed/${newUserData.name}/100/100`,
+      avatarStyle: 'default',
+      homeAddress: '', // Start with blank home address
+      institutionAddress: '', // Start with blank institution address
+      institutionPhone: '', // Start with blank institution phone
+    };
+
+    setAllUsers(prev => [...prev, newUser]);
+    setAllProgressData(prev => ({
+        ...prev,
+        [newUser.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
+    }));
+    handleLogin(newUser); // Log in the new user immediately
+  };
 
   // Effect for Service Worker Registration and Updates
   useEffect(() => {
@@ -242,13 +291,36 @@ const App: React.FC = () => {
       setIsAlertsBannerVisible(false);
     }
   }, []);
+  
+  // Effect to fetch initial location for alerts banner on login
+  useEffect(() => {
+    if (isAuthenticated && !location && !locationError) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+                setLocationError(null);
+            },
+            (error) => {
+                console.warn("Could not get initial location for alerts:", error.message);
+                // We don't set a user-facing error here, as it's a non-critical background fetch.
+                // The app will fall back to using the institution's address for alerts.
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 } // Low accuracy, 10-min cache
+        );
+    }
+  }, [isAuthenticated, location, locationError]);
 
-  // Effect to set initial theme from localStorage
+  // Effect to set initial theme from localStorage, defaulting to light mode
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme') as Theme | null;
     if (storedTheme) {
       setTheme(storedTheme);
     }
+    // By removing the 'else if' for prefers-color-scheme, the app will now
+    // default to the initial 'light' state if no theme is stored.
   }, []);
 
   // Effect to apply theme class to <html> and save to localStorage
@@ -271,9 +343,9 @@ const App: React.FC = () => {
     // Set avatar messages based on the current view
     const timer = setTimeout(() => {
       if (currentPage === 'progress') {
-        if (currentUser.role === UserRole.TEACHER) {
+        if (currentUser.role === UserRole.TEACHER || currentUser.role === UserRole.GOVERNMENT_OFFICIAL) {
           setAvatarMood('neutral');
-          setAvatarMessage(translate('Here you can monitor and manage your classroom.'));
+          setAvatarMessage(translate('Here you can monitor and manage classroom progress and analytics.'));
         } else {
           setAvatarMood('encouraging');
           setAvatarMessage(translate(`Here's your progress, **${currentUser.name}**. Keep up the great work!`));
@@ -305,6 +377,9 @@ const App: React.FC = () => {
       } else if (currentPage === 'meteo') {
         setAvatarMood('neutral');
         setAvatarMessage(translate('Here you can see live weather patterns. This is crucial for tracking large-scale events like cyclones.'));
+      } else if (currentPage === 'tectonic') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('This map shows tectonic plate boundaries and recent seismic activity.'));
       } else if (currentPage === 'news') {
         setAvatarMood('neutral');
         setAvatarMessage(translate('Stay informed with the latest global disaster and weather news.'));
@@ -348,14 +423,15 @@ const App: React.FC = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   }, []);
 
-  const handleLogout = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) console.error('Error logging out:', error);
+  const handleLogout = useCallback(() => {
+    setCurrentUser(null);
+    setStudentProgress(undefined);
     setSelectedModule(null);
     setSelectedQuiz(null);
     setLastQuizResult(null);
     setCurrentPage('dashboard');
     setDashboardView('dashboard');
+    sessionStorage.clear(); // Clear all session data on logout
   }, []);
 
 
@@ -383,8 +459,21 @@ const App: React.FC = () => {
 
   const handleSimulationComplete = useCallback((module: LearningModule, score: LabScore) => {
       if (currentUser) {
-        // TODO: Update lab score in Supabase
-        console.log("Lab completed, score to be saved:", score);
+        const updateUserProgress = (prev: StudentProgress | undefined): StudentProgress => {
+            const newProgress = prev || { quizScores: {}, labScores: {}, timeSpent: 0 };
+            return {
+                ...newProgress,
+                labScores: {
+                    ...newProgress.labScores,
+                    [module.id]: score
+                }
+            };
+        };
+        setAllProgressData(prev => ({
+            ...prev,
+            [currentUser.id]: updateUserProgress(prev[currentUser.id])
+        }));
+        setStudentProgress(updateUserProgress);
       }
       setLabView('lab_dashboard');
   }, [currentUser]);
@@ -393,9 +482,23 @@ const App: React.FC = () => {
     if (selectedQuiz && currentUser) {
       const result = { quizId: selectedQuiz.id, score, totalQuestions };
       setLastQuizResult(result);
-
-      // TODO: Update quiz score in Supabase
-      console.log("Quiz completed, result to be saved:", result);
+      
+      const updateUserProgress = (prev: StudentProgress | undefined): StudentProgress => {
+            const newProgress = prev || { quizScores: {}, labScores: {}, timeSpent: 0 };
+            return {
+                ...newProgress,
+                quizScores: {
+                    ...newProgress.quizScores,
+                    [selectedQuiz.id]: result
+                }
+            };
+        };
+       
+       setAllProgressData(prev => ({
+            ...prev,
+            [currentUser.id]: updateUserProgress(prev[currentUser.id])
+       }));
+       setStudentProgress(updateUserProgress);
       
       const percentage = Math.round((score / totalQuestions) * 100);
       if (percentage >= 80) {
@@ -439,10 +542,8 @@ const App: React.FC = () => {
         } else if (preProfileLocation.page === 'dashboard' && preProfileLocation.view) {
             setDashboardView(preProfileLocation.view as DashboardView);
         }
-        // No view to restore for 'progress', 'distress', or 'meteo'
         setPreProfileLocation(null);
     } else {
-        // Fallback
         handleReturnToDashboard();
     }
   }, [preProfileLocation, handleReturnToDashboard]);
@@ -454,7 +555,7 @@ const App: React.FC = () => {
   }, []);
   
   const handleShowSolutions = useCallback(() => {
-    if (currentUser?.role === UserRole.TEACHER) {
+    if (currentUser?.role === UserRole.TEACHER || currentUser?.role === UserRole.GOVERNMENT_OFFICIAL) {
       setCurrentPage('lab');
       setLabView('solutions');
     }
@@ -472,15 +573,12 @@ const App: React.FC = () => {
     }
   }, [labScores]);
 
-  const handleSaveProfile = useCallback(async (updatedUser: User, updatedInstitution: Institution) => {
-    const success = await updateProfile(updatedUser, updatedInstitution);
-    if (success) {
-        setCurrentUser(updatedUser);
-        setCurrentInstitution(updatedInstitution);
-        if (updatedUser.avatarStyle) {
-            localStorage.setItem(`avatarStyle-${updatedUser.id}`, updatedUser.avatarStyle);
-            setAvatarStyle(updatedUser.avatarStyle);
-        }
+  const handleSaveProfile = useCallback(async (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    setAllUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+    if (updatedUser.avatarStyle) {
+        localStorage.setItem(`avatarStyle-${updatedUser.id}`, updatedUser.avatarStyle);
+        setAvatarStyle(updatedUser.avatarStyle);
     }
   }, []);
   
@@ -535,32 +633,80 @@ const App: React.FC = () => {
   const handleOpenChatbot = useCallback(() => setIsChatbotOpen(true), []);
   const handleCloseChatbot = useCallback(() => setIsChatbotOpen(false), []);
 
-  const handleAddStudent = useCallback(async (studentData: any) => {
-    if (!currentInstitution) return;
-    const newStudent = await addStudent(studentData, currentInstitution.id);
-    if (newStudent) {
-        setStudentsInClass(prev => [...prev, newStudent]);
-    }
-  }, [currentInstitution]);
+  const handleAddStudent = useCallback((studentData: any) => {
+    if (!currentUser) return;
+    const newStudent: User = {
+        id: `user-${Date.now()}`,
+        name: studentData.name,
+        password: studentData.password,
+        role: UserRole.STUDENT,
+        institutionName: currentUser.institutionName, // Inherit from teacher
+        class: studentData.class,
+        avatarUrl: `https://picsum.photos/seed/${studentData.name}/100/100`,
+        rollNumber: studentData.rollNumber,
+        avatarStyle: 'default',
+    };
+    setAllUsers(prev => [...prev, newStudent]);
+  }, [currentUser]);
 
-  const handleUpdateStudent = useCallback(async (updatedStudent: User) => {
-    const success = await updateStudent(updatedStudent);
-    if (success) {
-      setStudentsInClass(prev => prev.map(u => u.id === updatedStudent.id ? updatedStudent : u));
-    }
+  const handleUpdateStudent = useCallback((updatedStudent: User) => {
+    setAllUsers(prev => prev.map(u => u.id === updatedStudent.id ? updatedStudent : u));
   }, []);
 
-  const handleDeleteStudent = useCallback(async (studentId: string) => {
-    const success = await deleteStudent(studentId);
-    if (success) {
-      setStudentsInClass(prev => prev.filter(u => u.id !== studentId));
-      setStudentProgressData(prev => {
-          const newState = { ...prev };
-          delete newState[studentId];
-          return newState;
-      });
+  const handleDeleteStudent = (studentId: string) => {
+    const isOfficial = currentUser?.role === UserRole.GOVERNMENT_OFFICIAL;
+    const confirmMessage = isOfficial
+        ? translate('Are you sure you want to delete this employee? This action cannot be undone.')
+        : translate('Are you sure you want to delete this student? This action cannot be undone.');
+
+    if (window.confirm(confirmMessage)) {
+        setAllUsers(prev => prev.filter(u => u.id !== studentId));
+        setAllProgressData(prev => {
+            const newState = { ...prev };
+            delete newState[studentId];
+            return newState;
+        });
     }
+  };
+
+  // --- Resource Management Handlers ---
+  const handleAddResource = useCallback((resourceData: Omit<Resource, 'id' | 'lastUpdated'>) => {
+    const newResource: Resource = {
+        id: `res-${Date.now()}`,
+        ...resourceData,
+        lastUpdated: new Date().toISOString(),
+    };
+    setResources(prev => [...prev, newResource]);
   }, []);
+  
+  const handleUpdateResource = useCallback((updatedResourceData: Omit<Resource, 'lastUpdated'>) => {
+    setResources(prev => prev.map(r => r.id === updatedResourceData.id ? { ...updatedResourceData, lastUpdated: new Date().toISOString() } : r));
+  }, []);
+  
+  const handleDeleteResource = (resourceId: string) => {
+    if (window.confirm(translate('Are you sure you want to delete this resource? This action cannot be undone.'))) {
+        setResources(prev => prev.filter(r => r.id !== resourceId));
+    }
+  };
+  
+  // --- Historical Disaster Management Handlers ---
+  const handleAddDisaster = useCallback((disasterData: Omit<HistoricalDisaster, 'id'>) => {
+    const newDisaster: HistoricalDisaster = {
+        id: `dis-${Date.now()}`,
+        ...disasterData,
+    };
+    setHistoricalDisasters(prev => [...prev, newDisaster]);
+  }, []);
+
+  const handleUpdateDisaster = useCallback((updatedDisaster: HistoricalDisaster) => {
+    setHistoricalDisasters(prev => prev.map(d => d.id === updatedDisaster.id ? updatedDisaster : d));
+  }, []);
+
+  const handleDeleteDisaster = (disasterId: string) => {
+    if (window.confirm(translate('Are you sure you want to delete this historical event? This action cannot be undone.'))) {
+        setHistoricalDisasters(prev => prev.filter(d => d.id !== disasterId));
+    }
+  };
 
   const handleCloseAlertsBanner = () => {
     setIsAlertsBannerVisible(false);
@@ -570,16 +716,9 @@ const App: React.FC = () => {
   const profileBackText = preProfileLocation?.page === 'lab' ? translate('Back to Lab') 
     : preProfileLocation?.page === 'progress' ? translate('Back to Progress Tracker')
     : preProfileLocation?.page === 'meteo' ? translate('Back to Meteorology')
+    : preProfileLocation?.page === 'tectonic' ? translate('Back to Tectonic Map')
     : preProfileLocation?.page === 'news' ? translate('Back to News Portal')
     : translate('Back to Dashboard');
-
-  if (isLoading) {
-      return (
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-teal-500"></div>
-          </div>
-      );
-  }
 
   const renderContent = () => {
     switch (currentPage) {
@@ -592,39 +731,62 @@ const App: React.FC = () => {
                 case 'result':
                     return lastQuizResult && selectedQuiz && selectedModule && <QuizResult result={lastQuizResult} moduleTitle={selectedModule.title} onRetake={() => handleStartQuiz(selectedModule.id)} onBackToModule={handleBackToModule} onBackToDashboard={handleReturnToDashboard} />;
                 case 'profile':
-                    return currentUser && currentInstitution && <Profile user={currentUser} institution={currentInstitution} onBack={handleReturnFromProfile} onSave={handleSaveProfile} backButtonText={profileBackText} />;
+                    return currentUser && <Profile user={currentUser} onBack={handleReturnFromProfile} onSave={handleSaveProfile} backButtonText={profileBackText} />;
                 default:
                     const modulesWithProgress = MODULES.map(m => ({
                         ...m,
                         progress: studentProgress?.quizScores[m.quizId] ? 100 : 0
                     }));
-                    return <Dashboard modules={modulesWithProgress} onSelectModule={handleSelectModule} onStartQuiz={handleStartQuiz} quizScores={quizScores} />;
+                    return <Dashboard 
+                                user={currentUser} 
+                                theme={theme}
+                                modules={modulesWithProgress} 
+                                onSelectModule={handleSelectModule} 
+                                onStartQuiz={handleStartQuiz} 
+                                quizScores={quizScores}
+                                resources={resources}
+                                historicalDisasters={historicalDisasters}
+                                onAddResource={handleAddResource}
+                                onUpdateResource={handleUpdateResource}
+                                onDeleteResource={handleDeleteResource}
+                                onAddDisaster={handleAddDisaster}
+                                onUpdateDisaster={handleUpdateDisaster}
+                                onDeleteDisaster={handleDeleteDisaster}
+                            />;
             }
         case 'lab':
             switch(labView) {
                 case 'simulation':
                     return selectedModule && <Simulation module={selectedModule} onComplete={(score) => handleSimulationComplete(selectedModule, score)} onBack={handleBackToLabDashboard} />;
                 case 'final_certificate':
-                    return currentUser && currentInstitution && <Certificate user={currentUser} institution={currentInstitution} onBack={handleBackToLabDashboard} />;
+                    return currentUser && <Certificate user={currentUser} onBack={handleBackToLabDashboard} />;
                 case 'solutions':
                      return <SolutionsView modules={MODULES} quizzes={QUIZZES} onBack={handleBackToLabDashboard} />;
                 default:
-                    return currentUser && currentInstitution && <LabDashboard user={currentUser} institution={currentInstitution} modules={MODULES} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} />;
+                    return currentUser && <LabDashboard user={currentUser} modules={MODULES} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} />;
             }
         case 'distress':
             return currentUser && <DistressForm user={currentUser} onBack={handleReturnToDashboard} />;
         case 'progress':
+            let studentsForTracker: User[] = [];
+            if (currentUser?.role === UserRole.TEACHER) {
+                studentsForTracker = allUsers.filter(u => u.role === UserRole.STUDENT && u.institutionName === currentUser.institutionName);
+            } else if (currentUser?.role === UserRole.GOVERNMENT_OFFICIAL) {
+                studentsForTracker = allUsers.filter(u => u.role === UserRole.STUDENT);
+            }
             return currentUser && <ProgressTracker 
                                     user={currentUser} 
                                     modules={MODULES} 
-                                    studentData={studentsInClass} 
-                                    progressData={studentProgressData}
+                                    studentData={studentsForTracker} 
+                                    progressData={allProgressData}
                                     onAddStudent={handleAddStudent}
                                     onUpdateStudent={handleUpdateStudent}
                                     onDeleteStudent={handleDeleteStudent}
                                   />;
         case 'meteo':
-            return currentInstitution && <WindyMap institution={currentInstitution} />;
+            return currentUser && <WindyMap user={currentUser} theme={theme} />;
+        case 'tectonic':
+            return currentUser && <TectonicMap user={currentUser} />;
         case 'news':
             return currentUser && <News currentUser={currentUser} />;
         default:
@@ -632,9 +794,15 @@ const App: React.FC = () => {
     }
   }
 
+  const alertLocation = (
+    currentUser?.homeAddress || 
+    (location ? `${location.latitude},${location.longitude}` : null) || 
+    currentUser?.institutionAddress ||
+    currentUser?.institutionName
+  ) || 'India';
+
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${theme}`}>
-      {/* App Shell: Always rendered. The Auth component will overlay this with a backdrop filter. */}
       <div className="flex flex-1">
         <Sidebar 
           currentPage={currentPage}
@@ -647,10 +815,16 @@ const App: React.FC = () => {
         />
 
         <div className="flex-1 flex flex-col lg:ml-64">
-           {isAuthenticated && currentUser && currentInstitution ? (
+           {isAuthenticated && currentUser ? (
                <Header
                   user={currentUser}
-                  institution={currentInstitution}
+                  // Fix: Pass the required 'institution' prop, constructed from the currentUser object.
+                  institution={{
+                    id: `inst-${currentUser.id}`,
+                    name: currentUser.institutionName,
+                    address: currentUser.institutionAddress || '',
+                    phoneNumber: currentUser.institutionPhone || '',
+                  }}
                   onProfileClick={handleShowProfile}
                   onLogout={handleLogout}
                   theme={theme}
@@ -659,22 +833,20 @@ const App: React.FC = () => {
                   showMenuButton={true}
                />
            ) : (
-            // Placeholder for header to prevent layout shift on login/logout
             <div className="h-[69px] border-b border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
            )}
 
           <main className="flex-1 p-4 md:p-6 lg:p-8 relative">
-              {isAuthenticated && isAlertsBannerVisible && currentInstitution && (
+              {isAuthenticated && isAlertsBannerVisible && currentUser && (
                 <div className="mb-6">
                     <AlertsBanner
-                        location={currentInstitution.address.split(',')[1]?.trim() ?? currentInstitution.address}
+                        location={alertLocation}
                         onClose={handleCloseAlertsBanner}
                     />
                 </div>
               )}
               {isAuthenticated ? renderContent() : (
-                // Show a non-interactive dashboard as the background for the login screen
-                <Dashboard modules={MODULES.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} />
+                <Dashboard theme={theme} user={null} modules={MODULES.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} resources={[]} historicalDisasters={[]} onAddResource={()=>{}} onUpdateResource={()=>{}} onDeleteResource={()=>{}} onAddDisaster={()=>{}} onUpdateDisaster={()=>{}} onDeleteDisaster={()=>{}} />
               )}
           </main>
           <AboutUs />
@@ -685,8 +857,6 @@ const App: React.FC = () => {
           />
         </div>
       </div>
-
-      {/* --- Overlays --- */}
 
       {isAuthenticated && (
         <>
@@ -702,7 +872,6 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* These modals can be opened by various actions, so they live here */}
       <PanicModal
         isOpen={isPanicModalOpen}
         onClose={handleClosePanicModal}
@@ -720,12 +889,14 @@ const App: React.FC = () => {
         avatarStyle={avatarStyle}
       />
       
-      {/* Auth Modal Overlay: Renders on top of the app shell when not authenticated */}
       {!isAuthenticated && (
-        <Auth />
+        <Auth 
+          allUsers={allUsers}
+          onLogin={handleLogin} 
+          onSignUp={handleSignUpAndLogin}
+        />
       )}
 
-      {/* Offline/Update Toasts */}
       {showOfflineToast && (
           <OfflineStatusToast type="offlineReady" onClose={() => setShowOfflineToast(false)} />
       )}

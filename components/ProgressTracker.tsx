@@ -15,8 +15,9 @@ interface ProgressTrackerProps {
 }
 
 const ProgressTracker: React.FC<ProgressTrackerProps> = ({ user, modules, studentData, progressData, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
-  if (user.role === UserRole.TEACHER) {
-    return <TeacherProgressView 
+  if (user.role === UserRole.TEACHER || user.role === UserRole.GOVERNMENT_OFFICIAL) {
+    return <TeacherProgressView
+              user={user}
               modules={modules} 
               studentData={studentData} 
               progressData={progressData}

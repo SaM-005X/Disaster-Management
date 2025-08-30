@@ -7,6 +7,7 @@ import type { NewsArticle, User } from '../types';
 import NewsCard from './NewsCard';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import NewsCreatorModal from './NewsCreatorModal';
+import ErrorMessage from './ErrorMessage';
 
 interface NewsProps {
     currentUser: User;
@@ -159,11 +160,7 @@ const News: React.FC<NewsProps> = ({ currentUser }) => {
                 <p id="news-subheader" className={`text-gray-600 dark:text-gray-400 mt-2 ${currentlySpokenId === 'news-subheader' ? 'tts-highlight' : ''}`}>{subHeaderText}</p>
             </div>
             
-            {error && (
-                <div className="p-4 text-center text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/50 rounded-lg">
-                    {error}
-                </div>
-            )}
+            {error && <ErrorMessage message={error} />}
 
             <section className="mb-12">
                 <div className="flex justify-between items-center mb-6 border-b-2 border-teal-500 pb-2">

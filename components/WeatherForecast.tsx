@@ -5,6 +5,7 @@ import { fetchWeatherForecast } from '../services/weatherService';
 import type { ForecastDay } from '../types';
 import { WeatherIcon } from './icons/WeatherIcon';
 import { WindArrowIcon } from './icons/WindArrowIcon';
+import ErrorMessage from './ErrorMessage';
 
 interface WeatherForecastProps {
     locationName: string;
@@ -53,7 +54,11 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({ locationName }) => {
                     setForecast(null);
                 }
             } catch (err) {
-                setError(translate('Failed to load weather forecast. Please try again later.'));
+                 if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(translate('Failed to load weather forecast. Please try again later.'));
+                }
                 console.error(err);
                 setForecast(null); // Ensure forecast is cleared on error
             } finally {
@@ -95,7 +100,7 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({ locationName }) => {
     }
 
     if (error) {
-        return <p className="mt-6 p-4 text-center text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/50 rounded-lg">{error}</p>;
+        return <ErrorMessage message={error} className="mt-6" />;
     }
     
     return (

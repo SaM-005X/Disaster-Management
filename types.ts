@@ -14,6 +14,7 @@ export enum UserRole {
   ADMIN = 'Admin',
   PARENT = 'Parent',
   SUPER_ADMIN = 'Super Admin',
+  GOVERNMENT_OFFICIAL = 'Government Official',
 }
 
 export enum HazardType {
@@ -39,12 +40,16 @@ export type AvatarStyle = 'default' | 'teal' | 'amber' | 'rose';
 export interface User {
   id: string;
   name: string;
+  password?: string;
   role: UserRole;
-  institutionId: string;
+  institutionName: string;
   class: string;
   avatarUrl: string;
   rollNumber?: string;
   avatarStyle?: AvatarStyle;
+  homeAddress?: string; // For alert system
+  institutionAddress?: string; // User-fed institution address
+  institutionPhone?: string; // User-fed institution phone
 }
 
 export interface QuizQuestion {
@@ -89,6 +94,8 @@ export interface ScenarioContent {
   text: string;
   choices?: string[];
   type: 'multiple-choice' | 'short-answer';
+  correctAnswer?: string;
+  hint?: string;
 }
 
 export interface LabScore {
@@ -140,4 +147,34 @@ export interface NewsArticle {
   status?: 'pending' | 'approved';
   type?: 'latest' | 'previous';
   isSummarizing?: boolean;
+}
+
+export enum ResourceType {
+  MEDICAL_KITS = 'Medical Kits',
+  RESCUE_TEAMS = 'Rescue Teams',
+  FOOD_SUPPLIES = 'Food Supplies',
+  WATER_TANKERS = 'Water Tankers',
+  SHELTER_UNITS = 'Shelter Units',
+}
+
+export type ResourceStatus = 'Available' | 'Deployed' | 'Low Stock';
+
+export interface Resource {
+  id: string;
+  type: ResourceType;
+  location: string; // City or region
+  status: ResourceStatus;
+  quantity: number;
+  lastUpdated: string; // ISO date string
+}
+
+export interface HistoricalDisaster {
+  id: string;
+  eventName: string;
+  date: string; // e.g., "August 2018"
+  type: HazardType;
+  location: string;
+  fatalities: number;
+  economicImpactUSD: string; // e.g., "1.5 Billion"
+  summary: string;
 }

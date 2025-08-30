@@ -3,14 +3,13 @@ import { useTranslate } from '../contexts/TranslationContext';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { AwardIcon } from './icons/AwardIcon';
 import { LockIcon } from './icons/LockIcon';
-import type { User, Institution } from '../types';
+import type { User } from '../types';
 
 interface DemoCertificateProps {
   user: User;
-  institution: Institution;
 }
 
-const DemoCertificate: React.FC<DemoCertificateProps> = ({ user, institution }) => {
+const DemoCertificate: React.FC<DemoCertificateProps> = ({ user }) => {
   const { translate } = useTranslate();
 
   return (
@@ -19,7 +18,7 @@ const DemoCertificate: React.FC<DemoCertificateProps> = ({ user, institution }) 
         <div className="opacity-20 filter grayscale">
             <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
                 <ShieldCheckIcon className="h-16 w-16 text-gray-500 mx-auto" />
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mt-4">{translate(institution.name)}</h1>
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mt-4">{translate(user.institutionName)}</h1>
                 <p className="text-lg text-gray-500 dark:text-gray-400">{translate('EduSafe Platform')}</p>
             </div>
             <div className="my-10 text-center">

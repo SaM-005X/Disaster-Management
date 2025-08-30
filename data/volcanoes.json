@@ -1,0 +1,81 @@
+
+{
+"type": "FeatureCollection",
+"features": [
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Fuji", "Country": "Japan", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 138.7278, 35.3606 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount St. Helens", "Country": "United States", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -122.1944, 46.1914 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Krakatoa", "Country": "Indonesia", "Primary_Volcano_Type": "Caldera" },
+"geometry": { "type": "Point", "coordinates": [ 105.423, -6.102 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Pinatubo", "Country": "Philippines", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 120.35, 15.13 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Vesuvius", "Country": "Italy", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 14.4269, 40.8225 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Popocatépetl", "Country": "Mexico", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -98.622, 19.023 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Cotopaxi", "Country": "Ecuador", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -78.437, -0.677 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Rainier", "Country": "United States", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -121.7604, 46.8529 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Agung", "Country": "Indonesia", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 115.508, -8.342 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mauna Loa", "Country": "United States", "Primary_Volcano_Type": "Shield volcano" },
+"geometry": { "type": "Point", "coordinates": [ -155.6028, 19.4716 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Eyjafjallajökull", "Country": "Iceland", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -19.6133, 63.6303 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Etna", "Country": "Italy", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 14.995, 37.751 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Kīlauea", "Country": "United States", "Primary_Volcano_Type": "Shield volcano" },
+"geometry": { "type": "Point", "coordinates": [ -155.283, 19.407 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Mount Merapi", "Country": "Indonesia", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ 110.442, -7.542 ] }
+},
+{
+"type": "Feature",
+"properties": { "Volcano_Name": "Nevado del Ruiz", "Country": "Colombia", "Primary_Volcano_Type": "Stratovolcano" },
+"geometry": { "type": "Point", "coordinates": [ -75.322, 4.895 ] }
+}
+]
+}

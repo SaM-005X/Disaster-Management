@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { LearningModule, LabScore, User, Institution } from '../types';
+import type { LearningModule, LabScore, User } from '../types';
 import LabCard from './LabCard';
 import DemoCertificate from './DemoCertificate';
 import { useTranslate } from '../contexts/TranslationContext';
@@ -9,14 +9,13 @@ import { CertificateIcon } from './icons/CertificateIcon';
 
 interface LabDashboardProps {
   user: User;
-  institution: Institution;
   modules: LearningModule[];
   labScores: Record<string, LabScore>;
   onStartSimulation: (module: LearningModule) => void;
   onViewFinalCertificate: () => void;
 }
 
-const LabDashboard: React.FC<LabDashboardProps> = ({ user, institution, modules, labScores, onStartSimulation, onViewFinalCertificate }) => {
+const LabDashboard: React.FC<LabDashboardProps> = ({ user, modules, labScores, onStartSimulation, onViewFinalCertificate }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
 
@@ -106,7 +105,7 @@ const LabDashboard: React.FC<LabDashboardProps> = ({ user, institution, modules,
       ) : (
           <div className="my-12">
             <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-4 text-center">{translate('Your Final Reward')}</h3>
-            <DemoCertificate user={user} institution={institution} />
+            <DemoCertificate user={user} />
           </div>
       )}
 

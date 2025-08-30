@@ -23,14 +23,14 @@ const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10', style = 
     <div className={className}>
       <svg viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          {/* Default Style */}
+          {/* Default Style (Teal) */}
           <linearGradient id="robot-gradient-default" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style={{ stopColor: 'rgb(229 231 235)' }} />
-            <stop offset="100%" style={{ stopColor: 'rgb(107 114 128)' }} />
+            <stop offset="0%" stopColor="#ccfbf1" />
+            <stop offset="100%" stopColor="#14b8a6" />
           </linearGradient>
           <linearGradient id="robot-gradient-dark-default" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style={{ stopColor: 'rgb(75 85 99)' }} />
-            <stop offset="100%" style={{ stopColor: 'rgb(31 41 55)' }} />
+            <stop offset="0%" stopColor="#0d9488" />
+            <stop offset="100%" stopColor="#115e59" />
           </linearGradient>
           {/* Teal Style */}
           <linearGradient id="robot-gradient-teal" x1="0%" y1="0%" x2="100%" y2="100%">

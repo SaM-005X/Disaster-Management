@@ -41,22 +41,29 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { translate } = useTranslate();
 
   useEffect(() => {
     const getAlerts = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         const fetchedAlerts = await fetchRealTimeAlerts(location);
         setAlerts(fetchedAlerts);
-      } catch (error) {
-        console.error("Failed to fetch alerts:", error);
+      } catch (err) {
+        console.error("Failed to fetch alerts:", err);
+        if (err instanceof Error) {
+            setError(err.message);
+        } else {
+            setError(translate("An unknown error occurred while fetching alerts."));
+        }
       } finally {
         setIsLoading(false);
       }
     };
     getAlerts();
-  }, [location]);
+  }, [location, translate]);
 
   useEffect(() => {
     if (alerts.length > 1) {
@@ -72,6 +79,30 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
       <div className="p-4 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse">
         <div className="h-6 w-3/4 bg-gray-300 dark:bg-gray-600 rounded"></div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div
+            className={`relative w-full p-4 rounded-lg text-white shadow-lg backdrop-blur-md border bg-red-500/90 dark:bg-red-800/90 border-red-700 dark:border-red-600`}
+            role="alert"
+        >
+            <div className="flex items-center">
+                <div className="flex-shrink-0"><AlertTriangleIcon className="h-6 w-6" /></div>
+                <div className="ml-3 flex-1">
+                    <p className="font-bold">{translate('Could Not Load Alerts')}</p>
+                    <p className="text-sm">{translate(error)}</p>
+                </div>
+                <button
+                    onClick={onClose}
+                    className="ml-4 p-1.5 rounded-full hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white"
+                    aria-label={translate("Dismiss alert")}
+                >
+                    <XIcon className="h-5 w-5" />
+                </button>
+            </div>
+        </div>
     );
   }
 
