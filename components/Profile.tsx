@@ -23,7 +23,7 @@ interface ProfileProps {
   backButtonText?: string;
 }
 
-const AVATAR_STYLES: AvatarStyle[] = ['default', 'amber', 'rose'];
+const AVATAR_STYLES: AvatarStyle[] = ['default', 'amber', 'rose', 'purple'];
 
 const InfoRow: React.FC<{
     icon: React.ReactNode;
@@ -103,20 +103,28 @@ const Profile: React.FC<ProfileProps> = ({ user, onBack, onSave, backButtonText 
         ? translate('Teacher Information') 
         : user.role === UserRole.GOVERNMENT_OFFICIAL
         ? translate('Official Information')
+        : user.role === UserRole.USER
+        ? translate('User Information')
         : translate('Student Information');
 
     const classLabel = user.role === UserRole.TEACHER 
         ? translate('Department / Subject') 
         : user.role === UserRole.GOVERNMENT_OFFICIAL
         ? translate('Department Name')
+        : user.role === UserRole.USER
+        ? translate('Community / Group')
         : translate('Class / Grade');
         
     const institutionLabel = user.role === UserRole.GOVERNMENT_OFFICIAL
         ? translate('Ministry Name')
+        : user.role === UserRole.USER
+        ? translate('City / Region')
         : translate('Institution Name');
 
     const institutionDetailsHeader = user.role === UserRole.GOVERNMENT_OFFICIAL
         ? translate('Ministry Details')
+        : user.role === UserRole.USER
+        ? translate('Location Details')
         : translate('Institution Details');
 
 

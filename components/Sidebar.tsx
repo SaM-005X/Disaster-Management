@@ -94,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
           <ShieldCheckIcon className="h-8 w-8 text-teal-500" />
-          <span className="text-xl font-bold text-gray-800 dark:text-white">{translate('EduSafe')}</span>
+          <span className="text-xl font-bold text-gray-800 dark:text-white">{translate('AlertIQ')}</span>
         </div>
         <button onClick={() => setIsOpen(false)} className="lg:hidden p-1 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
              <XIcon className="h-6 w-6" />
@@ -182,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               onClick={() => handleNavigation('progress')}
             />
           </li>
-          {(user?.role === UserRole.TEACHER || user?.role === UserRole.GOVERNMENT_OFFICIAL) && (
+          {(user?.role === UserRole.TEACHER || user?.role === UserRole.GOVERNMENT_OFFICIAL || user?.role === UserRole.USER) && (
             <li>
                 <NavLink
                     icon={<KeyIcon className="h-6 w-6" />}
@@ -195,7 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
         </ul>
       </nav>
       <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
-         <p className="text-xs text-gray-500 dark:text-gray-400">© 2024 EduSafe Platform</p>
+         <p className="text-xs text-gray-500 dark:text-gray-400">© 2024 AlertIQ Platform</p>
       </div>
     </>
   );

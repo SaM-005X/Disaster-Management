@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 // Simple in-memory cache for the session
 const apiCache = new Map<string, any>();
@@ -17,8 +18,6 @@ export async function fetchTranslations(
     return {};
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   const prompt = `Translate the following JSON array of strings into ${targetLanguage}.
 Respond with a single JSON array containing the translated strings in the exact same order.
 The output MUST be a valid JSON array of strings, with no extra text, explanations, or markdown formatting like \`\`\`json.`;
@@ -26,7 +25,7 @@ The output MUST be a valid JSON array of strings, with no extra text, explanatio
   const contents = `${prompt}\n\n${JSON.stringify(texts)}`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: contents,
       config: {
@@ -64,7 +63,7 @@ The output MUST be a valid JSON array of strings, with no extra text, explanatio
     apiCache.set(cacheKey, resultMap);
     return resultMap;
   } catch (error) {
-    const errorMessage = handleApiError(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Translation API error:', errorMessage);
     // On error, return originals so the UI doesn't break
     const errorMap: Record<string, string> = {};

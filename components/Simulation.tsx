@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import type { LearningModule, LabScore, ScenarioContent } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { SendIcon } from './icons/SendIcon';
 import { LightbulbIcon } from './icons/LightbulbIcon';
 import ErrorMessage from './ErrorMessage';
-import { handleApiError } from '../services/apiErrorHandler';
+import { AwardIcon } from './icons/AwardIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { generateContent, generateImages } from '../services/aiService';
 
 // State for each step in the visual simulation
 interface SimulationStep {
@@ -20,6 +23,7 @@ interface SimulationStep {
 
 const MAX_STEPS = 5;
 const MULTIPLE_CHOICE_COUNT = 2;
+const CORRECT_SCORE_THRESHOLD = 8; // Score >= 8 is considered "correct" for short answers.
 
 const Simulation: React.FC<{
   module: LearningModule;
@@ -36,6 +40,7 @@ const Simulation: React.FC<{
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
     const [showHint, setShowHint] = useState(false);
     const { translate } = useTranslate();
+    const { registerTexts, currentlySpokenId } = useTTS();
 
     // Consolidate module content into a string for context
     const moduleContext = module.content.map(c => {
@@ -49,13 +54,11 @@ const Simulation: React.FC<{
         setError(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
             const imagePromptInstruction = `Based on the learning module content for "${module.title}", generate a single, detailed, and photorealistic prompt for an image generator. This is for step ${stepIndex + 1} of ${MAX_STEPS} in a simulation. The scenario should be more complex if the step number is higher. Do not add any conversational text or markdown. Just the prompt itself.
             ---
             MODULE CONTENT: ${moduleContext}
             ---`;
-            const imagePromptResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: imagePromptInstruction });
+            const imagePromptResponse = await generateContent({ model: 'gemini-2.5-flash', contents: imagePromptInstruction });
             const imagePrompt = imagePromptResponse.text.trim();
 
             const questionType = stepIndex < MULTIPLE_CHOICE_COUNT ? 'multiple-choice' : 'short-answer';
@@ -85,13 +88,13 @@ Based **strictly** on the provided Learning Module Content and how it applies to
 - "hint": A brief, helpful hint that guides the user toward the correct answer by referencing a concept from the learning module, without giving away the answer directly.
 `;
 
-            const imagePromise = ai.models.generateImages({
+            const imagePromise = generateImages({
                 model: 'imagen-4.0-generate-001',
                 prompt: imagePrompt,
                 config: { numberOfImages: 1, outputMimeType: 'image/jpeg' }
             });
 
-            const questionPromise = ai.models.generateContent({
+            const questionPromise = generateContent({
                 model: 'gemini-2.5-flash',
                 contents: questionPromptInstruction,
                 config: {
@@ -119,7 +122,7 @@ Based **strictly** on the provided Learning Module Content and how it applies to
             setSteps(prev => [...prev, { imagePrompt, imageUrl, question }]);
 
         } catch (err) {
-            const errorMessage = handleApiError(err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
             console.error("Failed to generate simulation step:", errorMessage);
             setError(errorMessage);
         } finally {
@@ -130,6 +133,45 @@ Based **strictly** on the provided Learning Module Content and how it applies to
     useEffect(() => {
         generateNextStep(0);
     }, [generateNextStep]);
+    
+    const currentStep = steps[currentStepIndex];
+
+    useEffect(() => {
+        const textsToRead: TTSText[] = [];
+
+        if (isFinished) {
+            const correctAnswersCount = steps.filter(s => s.score !== undefined && s.score >= CORRECT_SCORE_THRESHOLD).length;
+            const isPassed = correctAnswersCount === MAX_STEPS;
+            const title = isPassed ? translate("Simulation Passed!") : translate("Simulation Complete");
+            const message = isPassed 
+                ? translate("Excellent work! You've correctly answered all scenarios and demonstrated strong preparedness skills.")
+                : translate(`You answered ${correctAnswersCount} out of ${MAX_STEPS} questions correctly. Review the lab report and learning module to improve.`);
+            const totalScore = steps.reduce((acc, step) => acc + (step.score ?? 0), 0);
+            const maxScore = steps.filter(s => s.score !== undefined).length * 10;
+            const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+
+            textsToRead.push({ id: 'sim-finished-title', text: title });
+            textsToRead.push({ id: 'sim-finished-message', text: message });
+            textsToRead.push({ id: 'sim-finished-score', text: `${translate('Final Score')}: ${percentage}%` });
+        } else if (currentStep?.question) {
+            textsToRead.push({ id: `sim-step-${currentStepIndex}`, text: `${translate('Step')} ${currentStepIndex + 1} ${translate('of')} ${MAX_STEPS}` });
+            textsToRead.push({ id: `sim-q-${currentStepIndex}`, text: translate(currentStep.question.text) });
+            if (showHint && currentStep.question.hint) {
+                textsToRead.push({ id: `sim-hint-${currentStepIndex}`, text: `${translate('Hint')}: ${translate(currentStep.question.hint)}` });
+            }
+            if (currentStep.question.type === 'multiple-choice') {
+                currentStep.question.choices?.forEach((choice, i) => {
+                    textsToRead.push({ id: `sim-q-${currentStepIndex}-c-${i}`, text: translate(choice) });
+                });
+            }
+            if (currentStep.feedback) {
+                textsToRead.push({ id: `sim-feedback-${currentStepIndex}`, text: `${translate('Feedback')}: ${translate(currentStep.feedback)}` });
+                textsToRead.push({ id: `sim-score-${currentStepIndex}`, text: `${translate('Score')}: ${currentStep.score}/10` });
+            }
+        }
+        
+        registerTexts(textsToRead);
+    }, [currentStep, currentStepIndex, isFinished, steps, showHint, registerTexts, translate]);
 
     const handleSubmitResponse = useCallback(async (response: string) => {
         if (!response.trim() || isEvaluating || isFinished || steps[currentStepIndex]?.userResponse) return;
@@ -146,8 +188,39 @@ Based **strictly** on the provided Learning Module Content and how it applies to
 
         const currentStepData = steps[currentStepIndex];
 
+        const moveToNextStep = () => {
+             if (currentStepIndex < MAX_STEPS - 1) {
+                setSelectedAnswer(null);
+                setShowHint(false);
+                setCurrentStepIndex(prev => prev + 1);
+                generateNextStep(currentStepIndex + 1);
+            } else {
+                setIsFinished(true);
+            }
+        };
+
+        // Handle MCQs locally for instant feedback
+        if (currentStepData.question?.type === 'multiple-choice') {
+            const isCorrect = response === currentStepData.question.correctAnswer;
+            const score = isCorrect ? 10 : 0;
+            const feedback = isCorrect 
+                ? translate("Correct! That's the right course of action.")
+                : `${translate("Incorrect. The recommended action was:")} "${translate(currentStepData.question.correctAnswer || '')}"`;
+
+            setTimeout(() => {
+                 setSteps(prev => {
+                    const newSteps = [...prev];
+                    newSteps[currentStepIndex].feedback = feedback;
+                    newSteps[currentStepIndex].score = score;
+                    return newSteps;
+                });
+                setIsEvaluating(false);
+                setTimeout(moveToNextStep, 3500);
+            }, 500);
+            return;
+        }
+
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const evaluationPrompt = `The user was shown a scene described as: "${currentStepData.imagePrompt}".
             The question was: "${currentStepData.question?.text}".
             Their response was: "${response}".
@@ -160,7 +233,7 @@ Based **strictly** on the provided Learning Module Content and how it applies to
             ---
             Respond ONLY with a valid JSON object with this schema: { "feedback": "Your explanation...", "score": score_from_0_to_10 }`;
 
-            const evaluationResponse = await ai.models.generateContent({
+            const evaluationResponse = await generateContent({
                 model: 'gemini-2.5-flash',
                 contents: evaluationPrompt,
                 config: {
@@ -183,46 +256,33 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                     return newSteps;
                 });
 
-                setTimeout(() => {
-                    if (currentStepIndex < MAX_STEPS - 1) {
-                        setSelectedAnswer(null);
-                        setShowHint(false);
-                        setCurrentStepIndex(prev => prev + 1);
-                        generateNextStep(currentStepIndex + 1);
-                    } else {
-                        setIsFinished(true);
-                    }
-                }, 3500);
+                setTimeout(moveToNextStep, 3500);
             }, 500);
 
         } catch (err) {
-            const errorMessage = handleApiError(err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
             console.error("Error evaluating response:", errorMessage);
             setError(errorMessage);
-            setTimeout(() => {
-                if (currentStepIndex < MAX_STEPS - 1) {
-                    setSelectedAnswer(null);
-                    setShowHint(false);
-                    setCurrentStepIndex(prev => prev + 1);
-                    generateNextStep(currentStepIndex + 1);
-                } else {
-                    setIsFinished(true);
-                }
-            }, 3500);
+            setTimeout(moveToNextStep, 3500);
 
         } finally {
             setIsEvaluating(false);
         }
-    }, [currentStepIndex, isEvaluating, isFinished, steps, moduleContext, generateNextStep]);
+    }, [currentStepIndex, isEvaluating, isFinished, steps, moduleContext, generateNextStep, translate]);
 
     const handleFinishSimulation = () => {
+        const correctAnswersCount = steps.filter(s => s.score !== undefined && s.score >= CORRECT_SCORE_THRESHOLD).length;
+        const isPassed = correctAnswersCount === MAX_STEPS;
+
         const totalScore = steps.reduce((acc, step) => acc + (step.score ?? 0), 0);
-        const maxScore = steps.length * 10;
-        const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+        const maxScore = steps.filter(s => s.score !== undefined).length * 10;
+        const actualPercentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+        
+        const finalPercentage = isPassed ? 100 : actualPercentage;
 
         const finalLabScore: LabScore = {
             moduleId: module.id,
-            score: percentage,
+            score: finalPercentage,
             steps: steps.map(s => ({
                 scenario: s.question || { text: s.imagePrompt, type: 'short-answer'},
                 response: s.userResponse ?? '', 
@@ -234,7 +294,6 @@ Based **strictly** on the provided Learning Module Content and how it applies to
         onComplete(finalLabScore);
     };
 
-    const currentStep = steps[currentStepIndex];
     const isStepAnswered = !!currentStep?.userResponse;
 
     const getButtonClasses = (choice: string): string => {
@@ -269,17 +328,26 @@ Based **strictly** on the provided Learning Module Content and how it applies to
     );
 
     const renderFinishedState = () => {
+        const correctAnswersCount = steps.filter(s => s.score !== undefined && s.score >= CORRECT_SCORE_THRESHOLD).length;
+        const isPassed = correctAnswersCount === MAX_STEPS;
+        
         const totalScore = steps.reduce((acc, step) => acc + (step.score ?? 0), 0);
         const maxScore = steps.filter(s => s.score !== undefined).length * 10;
         const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
 
+        const title = isPassed ? translate("Simulation Passed!") : translate("Simulation Complete");
+        const message = isPassed 
+            ? translate("Excellent work! You've correctly answered all scenarios and demonstrated strong preparedness skills.")
+            : translate(`You answered ${correctAnswersCount} out of ${MAX_STEPS} questions correctly. Review the lab report and learning module to improve.`);
+
         return (
             <div className="text-center p-6 flex flex-col items-center justify-center h-full">
-                <h3 className="text-3xl font-bold text-gray-800 dark:text-white">{translate('Simulation Complete!')}</h3>
-                <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">{translate('You have completed all scenarios.')}</p>
-                <div className="my-6">
+                {isPassed ? <AwardIcon className="h-20 w-20 text-emerald-500" /> : <BeakerIcon className="h-20 w-20 text-amber-500" />}
+                <h3 id="sim-finished-title" className={`text-3xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'sim-finished-title' ? 'tts-highlight' : ''}`}>{title}</h3>
+                <p id="sim-finished-message" className={`mt-2 text-lg text-gray-600 dark:text-gray-400 ${currentlySpokenId === 'sim-finished-message' ? 'tts-highlight' : ''}`}>{message}</p>
+                <div id="sim-finished-score" className={`my-6 ${currentlySpokenId === 'sim-finished-score' ? 'tts-highlight' : ''}`}>
                     <p className="text-lg font-semibold">{translate('Final Score')}</p>
-                    <p className="text-6xl font-extrabold text-teal-600 dark:text-teal-400">{percentage}%</p>
+                    <p className={`text-6xl font-extrabold ${isPassed ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{percentage}%</p>
                 </div>
                 <button onClick={handleFinishSimulation} className="bg-teal-600 text-white font-bold py-3 px-8 rounded-full hover:bg-teal-700 transition-colors">
                     {translate('View Full Report')}
@@ -317,9 +385,9 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
                                 {currentStep?.question && (
                                     <div className="animate-fade-in">
-                                        <p className="text-sm font-semibold text-teal-600 dark:text-teal-400">{translate('Step')} {currentStepIndex + 1} / {MAX_STEPS}</p>
+                                        <p id={`sim-step-${currentStepIndex}`} className={`text-sm font-semibold text-teal-600 dark:text-teal-400 ${currentlySpokenId === `sim-step-${currentStepIndex}` ? 'tts-highlight' : ''}`}>{translate('Step')} {currentStepIndex + 1} / {MAX_STEPS}</p>
                                         <div className="flex items-center justify-between gap-2 mt-1">
-                                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{translate(currentStep.question.text)}</h3>
+                                            <h3 id={`sim-q-${currentStepIndex}`} className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === `sim-q-${currentStepIndex}` ? 'tts-highlight' : ''}`}>{translate(currentStep.question.text)}</h3>
                                             {currentStep.question.hint && (
                                                 <button onClick={() => setShowHint(!showHint)} className="p-2 rounded-full hover:bg-amber-100 dark:hover:bg-gray-700 text-amber-500 flex-shrink-0" aria-label={translate("Toggle hint")}>
                                                     <LightbulbIcon className="h-6 w-6" />
@@ -327,16 +395,17 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                                             )}
                                         </div>
                                         {showHint && currentStep.question.hint && (
-                                            <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/50 rounded-lg text-sm text-amber-800 dark:text-amber-200 animate-fade-in">
+                                            <div id={`sim-hint-${currentStepIndex}`} className={`mt-2 p-3 bg-amber-50 dark:bg-amber-900/50 rounded-lg text-sm text-amber-800 dark:text-amber-200 animate-fade-in ${currentlySpokenId === `sim-hint-${currentStepIndex}` ? 'tts-highlight' : ''}`}>
                                                 <strong>{translate('Hint:')}</strong> {translate(currentStep.question.hint)}
                                             </div>
                                         )}
                                     </div>
                                 )}
                                 {currentStep?.feedback && (
-                                    <div className={`p-4 rounded-lg border-l-4 animate-fade-in ${currentStep.score && currentStep.score >= 7 ? 'bg-emerald-50 border-emerald-500 dark:bg-emerald-900/50' : 'bg-amber-50 border-amber-500 dark:bg-amber-900/50'}`}>
-                                        <p className="font-bold text-gray-800 dark:text-white">{translate('Feedback')} - {translate('Score')}: {currentStep.score}/10</p>
+                                    <div className={`p-4 rounded-lg border-l-4 animate-fade-in ${currentStep.score && currentStep.score >= CORRECT_SCORE_THRESHOLD ? 'bg-emerald-50 border-emerald-500 dark:bg-emerald-900/50' : 'bg-amber-50 border-amber-500 dark:bg-amber-900/50'}`}>
+                                        <p id={`sim-feedback-${currentStepIndex}`} className={`font-bold text-gray-800 dark:text-white ${currentlySpokenId === `sim-feedback-${currentStepIndex}` ? 'tts-highlight' : ''}`}>{translate('Feedback')}</p>
                                         <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{translate(currentStep.feedback)}</p>
+                                        <p id={`sim-score-${currentStepIndex}`} className={`mt-2 font-bold text-gray-800 dark:text-white ${currentlySpokenId === `sim-score-${currentStepIndex}` ? 'tts-highlight' : ''}`}>{translate('Score')}: {currentStep.score}/10</p>
                                     </div>
                                 )}
                             </div>
@@ -347,6 +416,7 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                                         {currentStep.question.choices?.map((choice, index) => (
                                             <button 
                                                 key={index}
+                                                id={`sim-q-${currentStepIndex}-c-${index}`}
                                                 onClick={() => {
                                                     if (!selectedAnswer) {
                                                         setSelectedAnswer(choice);
@@ -354,7 +424,7 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                                                     }
                                                 }}
                                                 disabled={!!selectedAnswer || isStepAnswered || isLoading || isEvaluating}
-                                                className={getButtonClasses(choice)}
+                                                className={`${getButtonClasses(choice)} ${currentlySpokenId === `sim-q-${currentStepIndex}-c-${index}` ? 'tts-highlight' : ''}`}
                                             >
                                                 {translate(choice)}
                                             </button>

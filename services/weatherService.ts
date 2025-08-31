@@ -1,6 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import type { ForecastDay } from '../types';
-import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 const weatherCache = new Map<string, ForecastDay[]>();
 
@@ -9,8 +9,6 @@ export async function fetchWeatherForecast(location: string): Promise<ForecastDa
   if (weatherCache.has(cacheKey)) {
     return weatherCache.get(cacheKey) || [];
   }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `Based on the current real-world date, generate a 7-day weather forecast for the location: "${location}".
   
@@ -28,7 +26,7 @@ export async function fetchWeatherForecast(location: string): Promise<ForecastDa
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -64,7 +62,7 @@ export async function fetchWeatherForecast(location: string): Promise<ForecastDa
     return forecast;
 
   } catch (error) {
-    const errorMessage = handleApiError(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to fetch weather forecast: ${errorMessage}`);
   }
 }

@@ -1,24 +1,18 @@
-
-
 import React, { useState } from 'react';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
-import type { User } from '../types';
+import { supabase } from '../services/supabaseClient';
 
-interface AuthProps {
-    allUsers: User[];
-    onLogin: (user: User) => void;
-    onSignUp: (newUserData: Omit<User, 'id' | 'avatarUrl' | 'rollNumber' | 'avatarStyle' | 'homeAddress' | 'institutionAddress' | 'institutionPhone'>) => void;
-}
 
-const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
+const Auth: React.FC = () => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     
     // Form state
-    const [name, setName] = useState('');
+    const [fullName, setFullName] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
     const [institutionName, setInstitutionName] = useState('');
@@ -26,11 +20,12 @@ const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
 
     const { translate } = useTranslate();
 
-    const titleText = translate('Disaster Ready');
+    const titleText = translate('Surksha');
     const subtitleText = isLoginView ? translate('Sign in to continue') : translate('Create a new account');
     
     const resetForm = () => {
-        setName('');
+        setFullName('');
+        setEmail('');
         setPassword('');
         setRole(UserRole.STUDENT);
         setInstitutionName('');
@@ -38,54 +33,58 @@ const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
         setError('');
     };
 
-    const handleSignIn = (e: React.FormEvent) => {
+    const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!navigator.onLine) {
+            setError(translate('You are currently offline. Please check your connection.'));
+            return;
+        }
         setLoading(true);
         setError('');
 
-        const foundUser = allUsers.find(
-            user => user.name.toLowerCase() === name.toLowerCase() &&
-                    user.password === password &&
-                    user.role === role
-        );
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
 
-        setTimeout(() => { // Simulate network delay
-            if (foundUser) {
-                onLogin(foundUser);
-            } else {
-                setError(translate('Invalid username, password, or role. Please try again.'));
-            }
-            setLoading(false);
-        }, 500);
+        if (error) {
+            setError(error.message);
+        }
+        // onAuthStateChange in App.tsx will handle successful login
+        setLoading(false);
     };
     
-    const handleSignUp = (e: React.FormEvent) => {
+    const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim() || !password.trim() || !institutionName.trim() || !classOrDept.trim()) {
+        if (!navigator.onLine) {
+            setError(translate('You are currently offline. Please check your connection.'));
+            return;
+        }
+        if (!fullName.trim() || !email.trim() || !password.trim() || !institutionName.trim() || !classOrDept.trim()) {
             setError(translate('All fields are required.'));
             return;
         }
         setLoading(true);
         setError('');
 
-        const existingUser = allUsers.find(user => user.name.toLowerCase() === name.toLowerCase());
-
-        setTimeout(() => { // Simulate network delay
-             if (existingUser) {
-                setError(translate('A user with this name already exists. Please choose another name or sign in.'));
-                setLoading(false);
-                return;
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    fullName: fullName.trim(),
+                    role,
+                    institutionName: institutionName.trim(),
+                    class: classOrDept.trim(),
+                }
             }
-            
-            onSignUp({
-                name: name.trim(),
-                password,
-                role,
-                institutionName: institutionName.trim(),
-                class: classOrDept.trim(),
-            });
-            // App.tsx will handle the login, so we don't need to setLoading(false) here.
-        }, 500);
+        });
+        
+        if (error) {
+             setError(error.message);
+        }
+        // onAuthStateChange in App.tsx will handle successful signup
+        setLoading(false);
     };
 
     const toggleView = () => {
@@ -96,11 +95,15 @@ const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
     const classLabel = role === UserRole.STUDENT 
     ? translate('Class / Grade') 
     : role === UserRole.TEACHER 
-    ? translate('Department / Subject') 
+    ? translate('Department / Subject')
+    : role === UserRole.USER
+    ? translate('Community / Group')
     : translate('Department Name');
 
     const institutionLabel = role === UserRole.GOVERNMENT_OFFICIAL 
-        ? translate('Ministry Name') 
+        ? translate('Ministry Name')
+        : role === UserRole.USER
+        ? translate('City / Region')
         : translate('Institution Name');
 
     return (
@@ -113,15 +116,30 @@ const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
                 </div>
 
                 <form onSubmit={isLoginView ? handleSignIn : handleSignUp} className="space-y-4">
+                    {!isLoginView && (
+                        <div>
+                            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {translate('Full Name')}
+                            </label>
+                            <input
+                                type="text"
+                                id="fullName"
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                required
+                                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 text-gray-900 dark:text-gray-200"
+                            />
+                        </div>
+                    )}
                     <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {translate('Username')}
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {translate('Email Address')}
                         </label>
                         <input
-                            type="text"
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            type="email"
+                            id="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             required
                             className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 text-gray-900 dark:text-gray-200"
                         />
@@ -140,26 +158,29 @@ const Auth: React.FC<AuthProps> = ({ allUsers, onLogin, onSignUp }) => {
                         />
                     </div>
                     
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{isLoginView ? translate('Sign in as:') : translate('I am a:')}</label>
-                        <div className="mt-2 grid grid-cols-3 gap-2">
-                            <label className="flex items-center cursor-pointer">
-                                <input type="radio" name="role" value={UserRole.STUDENT} checked={role === UserRole.STUDENT} onChange={() => setRole(UserRole.STUDENT)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
-                                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Student')}</span>
-                            </label>
-                            <label className="flex items-center cursor-pointer">
-                                <input type="radio" name="role" value={UserRole.TEACHER} checked={role === UserRole.TEACHER} onChange={() => setRole(UserRole.TEACHER)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
-                                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Teacher')}</span>
-                            </label>
-                            <label className="flex items-center cursor-pointer">
-                                <input type="radio" name="role" value={UserRole.GOVERNMENT_OFFICIAL} checked={role === UserRole.GOVERNMENT_OFFICIAL} onChange={() => setRole(UserRole.GOVERNMENT_OFFICIAL)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
-                                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Official')}</span>
-                            </label>
-                        </div>
-                    </div>
-
                     {!isLoginView && (
                          <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('I am a:')}</label>
+                                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="radio" name="role" value={UserRole.STUDENT} checked={role === UserRole.STUDENT} onChange={() => setRole(UserRole.STUDENT)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
+                                        <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Student')}</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="radio" name="role" value={UserRole.TEACHER} checked={role === UserRole.TEACHER} onChange={() => setRole(UserRole.TEACHER)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
+                                        <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Teacher')}</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="radio" name="role" value={UserRole.USER} checked={role === UserRole.USER} onChange={() => setRole(UserRole.USER)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
+                                        <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('User')}</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input type="radio" name="role" value={UserRole.GOVERNMENT_OFFICIAL} checked={role === UserRole.GOVERNMENT_OFFICIAL} onChange={() => setRole(UserRole.GOVERNMENT_OFFICIAL)} className="h-4 w-4 text-teal-600 border-gray-300 focus:ring-teal-500" />
+                                        <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{translate('Official')}</span>
+                                    </label>
+                                </div>
+                            </div>
                             <div>
                                 <label htmlFor="institutionName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                     {institutionLabel}

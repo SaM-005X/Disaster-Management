@@ -21,9 +21,10 @@ interface PanicModalProps {
     onOpenDistressForm: () => void;
     locationError: string | null;
     hasLocation: boolean;
+    isOnline: boolean;
 }
 
-const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergency, onDialAmbulance, onFindHospital, onOpenDistressForm, locationError, hasLocation }) => {
+const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergency, onDialAmbulance, onFindHospital, onOpenDistressForm, locationError, hasLocation, isOnline }) => {
     const [manualLocation, setManualLocation] = useState('');
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId, clearQueue, toggleReadAloud, stopReadAloud, isPlaying, isPaused, hasQueue } = useTTS();
@@ -63,7 +64,7 @@ const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergenc
     const handleManualSearch = () => {
         if (!manualLocation.trim()) return;
         const url = `https://www.google.com/maps/search/hospitals+near+${encodeURIComponent(manualLocation)}`;
-        window.open(url, '_blank');
+        window.open(url, '_blank', 'noopener,noreferrer');
         onClose();
     };
 
@@ -148,7 +149,8 @@ const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergenc
                     </button>
                      <button
                         onClick={onFindHospital}
-                        disabled={!hasLocation}
+                        disabled={!hasLocation || !isOnline}
+                        title={!isOnline ? translate('This feature requires an internet connection.') : ''}
                         className="w-full flex items-center justify-center gap-3 text-lg font-bold bg-emerald-600 text-white p-4 rounded-xl shadow-md hover:bg-emerald-700 transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-emerald-300 dark:focus:ring-emerald-800"
                     >
                         <HospitalIcon className="h-6 w-6" />
@@ -164,7 +166,8 @@ const PanicModal: React.FC<PanicModalProps> = ({ isOpen, onClose, onDialEmergenc
                     {locationError && (
                          <button
                             onClick={handleManualSearch}
-                            disabled={!manualLocation.trim()}
+                            disabled={!manualLocation.trim() || !isOnline}
+                            title={!isOnline ? translate('This feature requires an internet connection.') : ''}
                             className="w-full flex items-center justify-center gap-3 text-lg font-bold bg-cyan-600 text-white p-4 rounded-xl shadow-md hover:bg-cyan-700 transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-cyan-300 dark:focus:ring-cyan-800"
                         >
                             <HospitalIcon className="h-6 w-6" />

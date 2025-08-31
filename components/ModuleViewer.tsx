@@ -1,18 +1,24 @@
 import React, { useEffect } from 'react';
-import type { LearningModule, ModuleContent } from '../types';
+import type { LearningModule, ModuleContent, User } from '../types';
+import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, TTSText } from '../contexts/TTSContext';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { ClipboardCheckIcon } from './icons/ClipboardCheckIcon';
 import { LinkIcon } from './icons/LinkIcon';
+import { WifiOffIcon } from './icons/WifiOffIcon';
+import { PencilIcon } from './icons/PencilIcon';
 
 interface ModuleViewerProps {
   module: LearningModule;
   onStartQuiz: (moduleId: string) => void;
   onBack: () => void;
+  isOnline: boolean;
+  currentUser: User | null;
+  onEdit: () => void;
 }
 
-const ModuleContentViewer: React.FC<{ item: ModuleContent; index: number; currentlySpokenId: string | null; }> = ({ item, index, currentlySpokenId }) => {
+const ModuleContentViewer: React.FC<{ item: ModuleContent; index: number; currentlySpokenId: string | null; isOnline: boolean; }> = ({ item, index, currentlySpokenId, isOnline }) => {
     const { translate } = useTranslate();
     const baseId = `module-content-${index}`;
 
@@ -26,14 +32,22 @@ const ModuleContentViewer: React.FC<{ item: ModuleContent; index: number; curren
       case 'video':
         return (
           <div className="my-6 aspect-video w-full">
-            <iframe
-              className="w-full h-full rounded-xl shadow-lg"
-              src={item.content as string}
-              title={translate('Embedded video content')}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            ></iframe>
+            {isOnline ? (
+              <iframe
+                className="w-full h-full rounded-xl shadow-lg"
+                src={item.content as string}
+                title={translate('Embedded video content')}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              ></iframe>
+            ) : (
+              <div className="w-full h-full rounded-xl bg-gray-200 dark:bg-gray-700 flex flex-col items-center justify-center text-center p-4">
+                  <WifiOffIcon className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-2"/>
+                  <p className="font-semibold text-gray-700 dark:text-gray-300">{translate('Video Unavailable Offline')}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{translate('Please connect to the internet to watch this video.')}</p>
+              </div>
+            )}
           </div>
         );
       case 'list':
@@ -50,7 +64,7 @@ const ModuleContentViewer: React.FC<{ item: ModuleContent; index: number; curren
     }
 };
 
-const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack }) => {
+const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack, isOnline, currentUser, onEdit }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
 
@@ -79,13 +93,25 @@ const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-10 max-w-4xl mx-auto">
-      <button
-        onClick={onBack}
-        className="flex items-center space-x-2 text-teal-600 dark:text-teal-400 hover:underline font-semibold mb-8"
-      >
-        <ArrowLeftIcon className="h-5 w-5" />
-        <span>{translate('Back to Dashboard')}</span>
-      </button>
+      <div className="flex justify-between items-center mb-8">
+        <button
+            onClick={onBack}
+            className="flex items-center space-x-2 text-teal-600 dark:text-teal-400 hover:underline font-semibold"
+        >
+            <ArrowLeftIcon className="h-5 w-5" />
+            <span>{translate('Back to Dashboard')}</span>
+        </button>
+
+        {currentUser?.role === UserRole.GOVERNMENT_OFFICIAL && (
+            <button
+                onClick={onEdit}
+                className="flex items-center space-x-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-full hover:bg-teal-700 transition-colors"
+            >
+                <PencilIcon className="h-5 w-5" />
+                <span>{translate('Edit Module')}</span>
+            </button>
+        )}
+      </div>
 
       <div className="border-b pb-6 mb-6 border-gray-200 dark:border-gray-700">
         <span id="module-hazard" className={`text-sm font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider ${currentlySpokenId === 'module-hazard' ? 'tts-highlight' : ''}`}>{translate(module.hazardType)}</span>
@@ -95,7 +121,7 @@ const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack
 
       <article className="max-w-none">
         {module.content.map((item, index) => (
-          <ModuleContentViewer key={index} item={item} index={index} currentlySpokenId={currentlySpokenId} />
+          <ModuleContentViewer key={index} item={item} index={index} currentlySpokenId={currentlySpokenId} isOnline={isOnline} />
         ))}
       </article>
 
@@ -122,17 +148,26 @@ const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack
         </div>
       )}
 
-      <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-8">
-        <h3 id="quiz-prompt-heading" className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'quiz-prompt-heading' ? 'tts-highlight' : ''}`}>{translate('Ready to test your knowledge?')}</h3>
-        <p id="quiz-prompt-desc" className={`text-gray-600 dark:text-gray-400 mt-2 mb-6 ${currentlySpokenId === 'quiz-prompt-desc' ? 'tts-highlight' : ''}`}>{translate('Take the quiz to earn points and solidify your learning.')}</p>
-        <button
-          onClick={() => onStartQuiz(module.id)}
-          className="bg-emerald-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-emerald-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center mx-auto space-x-3"
-        >
-          <ClipboardCheckIcon className="h-6 w-6" />
-          <span>{translate('Start Quiz')}</span>
-        </button>
-      </div>
+      {module.hasLab ? (
+         <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-8">
+            <h3 id="quiz-prompt-heading" className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'quiz-prompt-heading' ? 'tts-highlight' : ''}`}>{translate('Ready to test your knowledge?')}</h3>
+            <p id="quiz-prompt-desc" className={`text-gray-600 dark:text-gray-400 mt-2 mb-6 ${currentlySpokenId === 'quiz-prompt-desc' ? 'tts-highlight' : ''}`}>{translate('Take the quiz to earn points and solidify your learning.')}</p>
+            <button
+            onClick={() => onStartQuiz(module.id)}
+            className="bg-emerald-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-emerald-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center mx-auto space-x-3"
+            >
+            <ClipboardCheckIcon className="h-6 w-6" />
+            <span>{translate('Start Quiz')}</span>
+            </button>
+        </div>
+      ) : (
+         <div className="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 text-center bg-amber-50 dark:bg-amber-900/50 rounded-2xl p-8">
+            <p className="font-semibold text-amber-800 dark:text-amber-200">{translate('No quiz is currently available for this module.')}</p>
+            {currentUser?.role === UserRole.GOVERNMENT_OFFICIAL && (
+                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">{translate('Go to the Lab Dashboard to create a quiz for this module.')}</p>
+            )}
+        </div>
+      )}
     </div>
   );
 };

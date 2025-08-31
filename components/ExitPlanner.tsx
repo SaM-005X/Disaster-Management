@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { useTranslate } from '../contexts/TranslationContext';
 import { UploadIcon } from './icons/UploadIcon';
@@ -91,9 +91,10 @@ interface ExitPlannerProps {
     onAddFloorplan: (plan: Omit<StoredFloorplan, 'id' | 'ownerId'>) => void;
     onUpdateFloorplan: (planId: string, updatedData: Partial<Omit<StoredFloorplan, 'id'>>) => void;
     onDeleteFloorplan: (planId: string) => void;
+    isOnline: boolean;
 }
 
-const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans, onAddFloorplan, onUpdateFloorplan, onDeleteFloorplan }) => {
+const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans, onAddFloorplan, onUpdateFloorplan, onDeleteFloorplan, isOnline }) => {
     const [floorplanUrl, setFloorplanUrl] = useState<string | null>(null);
     const [imageDimensions, setImageDimensions] = useState<{ width: number, height: number } | null>(null);
     const [userLocation, setUserLocation] = useState<{ x: number; y: number } | null>(null);
@@ -211,6 +212,7 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
 3.  **Find the Optimal Exit:** Based on the above priorities, determine the nearest and safest designated exit from the user's location.
 4.  **Generate a Path:** Create a step-by-step series of coordinates for the route, starting at the user's location and ending at the chosen exit.
 5.  **Provide Instructions:** Write clear, concise, step-by-step instructions that a person could follow in an emergency, referencing visual landmarks from the floorplan.
+6.  **CRITICAL SAFETY RULE:** You **must not** invent exits or pathways that are not explicitly shown on the map. The route must be physically possible based on the visual evidence. Do not draw a path through a solid wall.
 
 **OUTPUT FORMAT:**
 -   Respond ONLY with a single, valid JSON object that follows this exact schema. Do not include any other text, explanations, or markdown.
@@ -271,7 +273,7 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
 
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const prompt = `You are a calm and reassuring emergency safety assistant. The user has NOT provided a floorplan. Your primary goal is to provide clear, actionable, and general safety advice based on the user's described situation.
+            const prompt = `You are an expert emergency dispatcher. The user has NOT provided a floorplan. Your primary goal is to provide calm, authoritative, and actionable safety advice based on the user's described situation.
 
 **YOUR KNOWLEDGE BASE:**
 When formulating your response, draw upon these standard safety protocols:
@@ -299,7 +301,7 @@ When formulating your response, draw upon these standard safety protocols:
 "${textLocationInput.trim()}"
 
 **YOUR TASK:**
-Based on the user's situation and your knowledge base, provide general, step-by-step advice on how to find a safe exit. Adapt your advice to the type of environment described (e.g., office, library, house).
+Based on the user's situation and your knowledge base, provide general, step-by-step advice on how to find a safe exit. Adapt your advice to the type of environment described (e.g., office, library, house). Your advice must be extremely practical and easy to follow in a high-stress situation.
 
 **CRITICAL RULES:**
 1.  **Do NOT ask for a floorplan.** Provide actionable guidance based only on the text provided.
@@ -397,8 +399,9 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                         />
                         <button
                             onClick={handleGenerate}
-                            disabled={isLoading || (!textLocationInput.trim() && !userLocation)}
+                            disabled={isLoading || (!textLocationInput.trim() && !userLocation) || !isOnline}
                             className="flex items-center justify-center gap-3 bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-emerald-700 transition-colors transform disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-600"
+                            title={!isOnline ? translate('This feature is unavailable offline.') : ''}
                         >
                              {isLoading ? (
                                 <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -408,6 +411,7 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                             <span>{isLoading ? translate('Generating...') : translate('Generate Plan')}</span>
                         </button>
                     </div>
+                    {!isOnline && <p className="text-sm text-center mt-2 text-amber-600 dark:text-amber-400">{translate('AI plan generation is unavailable offline. You can still view your saved plans.')}</p>}
                 </div>
 
                 <div className="mt-6">
@@ -557,10 +561,22 @@ const FloorplanStorage: React.FC<{
 
     const localPlans = storedFloorplans.filter(p => !p.isGlobal && p.ownerId === currentUser.id);
     const globalPlans = storedFloorplans.filter(p => p.isGlobal);
-    const canEditGlobal = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
+
+    // Refined permission logic: Determine if the current user can edit the selected tab.
+    const userCanEditCurrentTab = useMemo(() => {
+        // Users can always add, edit, or delete their own "My Plans".
+        if (activeTab === 'local') {
+            return true;
+        }
+        // Only Government Officials can add, edit, or delete "Public Plans".
+        if (activeTab === 'global') {
+            return currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
+        }
+        return false;
+    }, [activeTab, currentUser.role]);
 
     const plansToShow = activeTab === 'local' ? localPlans : globalPlans;
-    const canAdd = activeTab === 'local' || (activeTab === 'global' && canEditGlobal);
+    const canAdd = userCanEditCurrentTab; // The add button visibility depends on the same logic.
     const addButtonText = activeTab === 'local' ? translate('Add My Plan') : translate('Add Public Plan');
 
     return (
@@ -589,7 +605,7 @@ const FloorplanStorage: React.FC<{
                             onSelect={() => onSelectPlan(plan)}
                             onReplace={() => onReplacePlan(plan)}
                             onDelete={() => onDeletePlan(plan.id)}
-                            canEdit={activeTab === 'local' || (activeTab === 'global' && canEditGlobal)}
+                            canEdit={userCanEditCurrentTab}
                         />
                     ))}
                 </div>

@@ -18,6 +18,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Himalayan Region', 'Seismic Zone V'],
     thumbnailUrl: 'https://wallpaperaccess.com/full/2142495.jpg',
     quizId: 'quiz-1',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'Understanding Earthquakes' },
       { type: 'paragraph', content: 'An earthquake is the shaking of the surface of the Earth resulting from a sudden release of energy in the Earth\'s lithosphere that creates seismic waves. Earthquakes can range in size from those that are so weak that they cannot be felt to those violent enough to toss people around and destroy whole cities.' },
@@ -51,6 +52,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Coastal Areas', 'River Basins'],
     thumbnailUrl: 'https://www.washingtonpost.com/resizer/g6qrtMHTZ6exloEIC7vT0fvEry8=/arc-anglerfish-washpost-prod-washpost/public/BX2IH7HQOYI6ZLAWR67XDFGNPA.jpg',
     quizId: 'quiz-2',
+    hasLab: true,
     content: [
         { type: 'heading', content: 'Understanding Floods' },
         { type: 'paragraph', content: 'Floods are the most frequent type of natural disaster and occur when an overflow of water submerges land that is usually dry. Floods are often caused by heavy rainfall, rapid snowmelt, or a storm surge from a tropical cyclone or tsunami in coastal areas.' },
@@ -78,6 +80,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Urban', 'All Institutions'],
     thumbnailUrl: 'https://png.pngtree.com/png-vector/20231106/ourlarge/pngtree-house-fire-png-image_10495889.png',
     quizId: 'quiz-3',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'Preventing Fires' },
       { type: 'paragraph', content: 'Most fires are preventable. It is important to be aware of potential fire hazards in your school and home. This includes faulty wiring, overloaded electrical outlets, and improper storage of flammable materials.' },
@@ -106,6 +109,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Coastal Regions', 'Tropical Areas'],
     thumbnailUrl: 'https://i.dailymail.co.uk/1s/2019/03/19/11/11177026-6825753-image-a-35_1552994830189.jpg',
     quizId: 'quiz-4',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'What is a Cyclone?' },
       { type: 'paragraph', content: 'A cyclone is a large-scale air mass that rotates around a strong center of low atmospheric pressure. They are characterized by high winds, heavy rain, and storm surges in coastal areas. Depending on the location, they are also known as hurricanes or typhoons.' },
@@ -131,6 +135,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Coastal Areas', 'Pacific Ring of Fire'],
     thumbnailUrl: 'https://www.washingtonpost.com/resizer/m5_Fw0k-YJLnwzjnajNg_WYz92g=/arc-anglerfish-washpost-prod-washpost/public/27LGMTEA4UI6XPRCGLJTDWDVGA.jpg',
     quizId: 'quiz-5',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'What Causes a Tsunami?' },
       { type: 'paragraph', content: 'Tsunamis are giant waves caused by major disturbances under the ocean, most commonly large undersea earthquakes. They can also be triggered by volcanic eruptions, landslides, or meteorite impacts. These waves can travel across entire oceans at speeds up to 800 km/h.' },
@@ -157,6 +162,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['All Regions', 'Subtropical'],
     thumbnailUrl: 'https://tse1.mm.bing.net/th/id/OIP.RD78cSStXm6gkbE-CFBU6gAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
     quizId: 'quiz-6',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'The Dangers of Thunderstorms' },
       { type: 'paragraph', content: 'All thunderstorms are dangerous. While they are most common in spring and summer, they can occur at any time. The primary dangers are lightning, flash floods, strong winds (downbursts), hail, and tornadoes.' },
@@ -182,6 +188,7 @@ export const MODULES: LearningModule[] = [
     regionTags: ['Industrial Zones', 'Urban Areas', 'Transport Corridors'],
     thumbnailUrl: 'https://tse2.mm.bing.net/th/id/OIP.lgE6XbrjXFmZg-Aes6zHzAAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
     quizId: 'quiz-7',
+    hasLab: true,
     content: [
       { type: 'heading', content: 'Understanding HazMat Incidents' },
       { type: 'paragraph', content: 'A hazardous material incident is the release of a harmful substance into the environment. These can be explosions, fires, spills, or leaks. They can happen anywhere, including factories, on railways, or on major roads.' },

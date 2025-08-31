@@ -1,6 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import type { NewsArticle } from '../types';
-import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 const newsCache = new Map<string, NewsArticle[]>();
 
@@ -10,13 +10,11 @@ export async function fetchNews(type: 'latest' | 'previous'): Promise<NewsArticl
     return newsCache.get(cacheKey) || [];
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   // The 'latest' news fetching remains unchanged as it's for recent, AI-generated content.
   if (type === 'latest') {
     const prompt = `Generate a list of 4 recent and significant real-world meteorological and disaster-related news events from around the globe. The events should be from the last few weeks. For each event, provide a catchy title, a one-sentence summary, a relevant and high-quality image URL from a stock photo site like Pexels, Unsplash, or Pixabay (ensure it's a direct image link), a major news source (e.g., "Reuters", "Associated Press"), and a valid link to a real news article about the event.`;
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -48,8 +46,7 @@ export async function fetchNews(type: 'latest' | 'previous'): Promise<NewsArticl
         newsCache.set(cacheKey, articles);
         return articles;
     } catch (error) {
-        const errorMessage = handleApiError(error);
-        throw new Error(`Failed to fetch news: ${errorMessage}`);
+        throw new Error(`Failed to fetch news: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -66,7 +63,7 @@ For each event, provide:
 CRITICAL: Format your entire response as a single, valid JSON array of objects, where each object represents a news article. Do not include any other text, explanations, or markdown formatting like \`\`\`json. Each object should have keys: "title", "summary", "imageUrl", "source".`;
 
     try {
-      const response = await ai.models.generateContent({
+      const response = await generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
@@ -105,8 +102,7 @@ CRITICAL: Format your entire response as a single, valid JSON array of objects, 
       return groundedArticles;
 
     } catch (error) {
-        const errorMessage = handleApiError(error);
-        throw new Error(`Failed to fetch historical news: ${errorMessage}`);
+        throw new Error(`Failed to fetch historical news: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

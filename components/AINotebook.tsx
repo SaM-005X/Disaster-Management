@@ -11,7 +11,6 @@ import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { FileTextIcon } from './icons/FileTextIcon';
 import * as aiNotebookService from '../services/aiNotebookService';
 import ErrorMessage from './ErrorMessage';
-// FIX: Import missing XIcon and PencilIcon components used in the component.
 import { XIcon } from './icons/XIcon';
 import { PencilIcon } from './icons/PencilIcon';
 

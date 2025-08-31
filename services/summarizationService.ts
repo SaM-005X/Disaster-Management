@@ -1,5 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
-import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 const summaryCache = new Map<string, string>();
 
@@ -9,8 +8,6 @@ export async function generateSummaryFromTitle(title: string, existingSummary?: 
     return summaryCache.get(cacheKey)!;
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   const prompt = `You are a news editor. The following news article has a weak or missing summary. Based on the title, write a new, more informative one-sentence summary. Respond ONLY with the summary text, without any introductory phrases like "Here is a summary:".
 
 Title: "${title}"
@@ -19,7 +16,7 @@ ${existingSummary ? `Existing Summary: "${existingSummary}"` : ''}
 New One-Sentence Summary:`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
@@ -32,7 +29,7 @@ New One-Sentence Summary:`;
     summaryCache.set(cacheKey, newSummary);
     return newSummary;
   } catch (error) {
-    const errorMessage = handleApiError(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Failed to generate summary for title "${title}":`, errorMessage);
     // On failure, return the best available text to avoid showing nothing.
     return existingSummary || title;

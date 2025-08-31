@@ -308,6 +308,9 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
             margin: 5px 0;
             border-top: 1px solid #999;
         }
+        .dark .legend hr {
+            border-top-color: #4b5563;
+        }
         .ring-of-fire-legend-icon {
             background: rgba(220, 38, 38, 0.4); 
             border: 1px solid #dc2626;
@@ -327,25 +330,25 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
         }
 
         /* Dark Mode Popup Styles */
-        .dark .leaflet-popup-content-wrapper {
+        .leaflet-popup-content-wrapper {
             background-color: #1f2937; /* gray-800 */
             color: #d1d5db; /* gray-300 */
             border-radius: 8px;
             box-shadow: 0 3px 14px rgba(0,0,0,0.4);
         }
-        .dark .leaflet-popup-content h3 {
+        .leaflet-popup-content h3 {
             color: #f9fafb; /* gray-50 */
         }
-        .dark .leaflet-popup-content hr {
+        .leaflet-popup-content hr {
             border-top-color: #4b5563; /* gray-600 */
         }
-        .dark .leaflet-popup-tip {
+        .leaflet-popup-tip {
             background-color: #1f2937; /* gray-800 */
         }
-        .dark .leaflet-popup-close-button {
+        .leaflet-popup-close-button {
             color: #9ca3af !important; /* gray-400, !important to override leaflet inline style */
         }
-        .dark .leaflet-popup-close-button:hover {
+        .leaflet-popup-close-button:hover {
             color: #f9fafb !important; /* gray-50 */
         }
         /* Utility classes for popup content */

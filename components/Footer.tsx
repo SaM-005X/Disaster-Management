@@ -9,10 +9,10 @@ import { IndianFlagIcon } from './icons/IndianFlagIcon';
 interface FooterProps {
     onDashboardClick: () => void;
     onLabClick: () => void;
-    onOpenPanicModal: () => void;
+    onDistressClick: () => void;
 }
 
-const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onOpenPanicModal }) => {
+const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onDistressClick }) => {
     const { translate } = useTranslate();
 
     const handleAboutClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -31,7 +31,7 @@ const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onOpenPan
                     <div className="md:col-span-1">
                         <div className="flex items-center space-x-2 mb-4">
                             <ShieldCheckIcon className="h-8 w-8 text-teal-400" />
-                            <h2 className="text-2xl font-bold text-white">{translate('EduSafe')}</h2>
+                            <h2 className="text-2xl font-bold text-white">{translate('AlertIQ')}</h2>
                         </div>
                         <p className="text-sm">{translate('Building a resilient community through disaster management education.')}</p>
                     </div>
@@ -50,8 +50,8 @@ const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onOpenPan
                     <div>
                         <h3 className="text-lg font-semibold text-white mb-4">{translate('Contact Us')}</h3>
                         <ul className="space-y-2">
-                            <li><button onClick={onOpenPanicModal} className="hover:text-teal-400 transition-colors text-left">{translate('Rescue / Distress Form')}</button></li>
-                            <li><a href="mailto:info@edusafe.org" className="hover:text-teal-400 transition-colors">info@edusafe.org</a></li>
+                            <li><button onClick={onDistressClick} className="hover:text-teal-400 transition-colors text-left">{translate('Rescue / Distress Form')}</button></li>
+                            <li><a href="mailto:info@alertiq.org" className="hover:text-teal-400 transition-colors">info@alertiq.org</a></li>
                         </ul>
                         <div className="flex space-x-4 mt-4">
                             <a href="#" aria-label="Twitter" className="text-gray-400 hover:text-teal-400"><TwitterIcon className="h-6 w-6" /></a>
@@ -73,7 +73,7 @@ const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onOpenPan
                     </div>
                 </div>
                 <div className="mt-8 border-t border-gray-700 pt-6 text-center text-sm text-gray-500">
-                    <p>&copy; {new Date().getFullYear()} {translate('EduSafe Platform. All Rights Reserved.')}</p>
+                    <p>&copy; {new Date().getFullYear()} {translate('AlertIQ Platform. All Rights Reserved.')}</p>
                 </div>
             </div>
         </footer>

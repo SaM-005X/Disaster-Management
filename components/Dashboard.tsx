@@ -1,17 +1,19 @@
 import React, { useEffect } from 'react';
-import type { LearningModule, QuizScore, User, Resource, HistoricalDisaster } from '../types';
+import type { LearningModule, QuizScore, User, Resource, HistoricalDisaster, LabScore } from '../types';
 import { UserRole } from '../types';
 import ModuleCard from './ModuleCard';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
 import GovernmentWidgets from './GovernmentWidgets';
 import { Theme } from '../App';
+import { PlusCircleIcon } from './icons/PlusCircleIcon';
 
 interface DashboardProps {
   modules: LearningModule[];
   onSelectModule: (module: LearningModule) => void;
   onStartQuiz: (moduleId: string) => void;
   quizScores: Record<string, QuizScore>;
+  labScores: Record<string, LabScore>; // Added for more detailed TTS
   user: User | null;
   theme: Theme;
   resources: Resource[];
@@ -22,13 +24,32 @@ interface DashboardProps {
   onAddDisaster: (data: Omit<HistoricalDisaster, 'id'>) => void;
   onUpdateDisaster: (data: HistoricalDisaster) => void;
   onDeleteDisaster: (id: string) => void;
+  onAddModule: () => void;
+  onEditModule: (module: LearningModule) => void;
+  onDeleteModule: (moduleId: string) => void;
 }
 
+const AddModuleCard: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+    const { translate } = useTranslate();
+    return (
+        <button
+            onClick={onClick}
+            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center text-center p-6 text-gray-500 dark:text-gray-400 hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-400 dark:hover:text-teal-400 transition-all duration-300"
+        >
+            <PlusCircleIcon className="h-16 w-16" />
+            <p className="mt-4 text-xl font-bold">{translate('Add New Module')}</p>
+            <p className="mt-1 text-sm">{translate('Create a new learning module for all users.')}</p>
+        </button>
+    );
+};
+
+
 const Dashboard: React.FC<DashboardProps> = ({ 
-  modules, onSelectModule, onStartQuiz, quizScores, user, theme,
+  modules, onSelectModule, onStartQuiz, quizScores, labScores, user, theme,
   resources, historicalDisasters,
   onAddResource, onUpdateResource, onDeleteResource,
-  onAddDisaster, onUpdateDisaster, onDeleteDisaster
+  onAddDisaster, onUpdateDisaster, onDeleteDisaster,
+  onAddModule, onEditModule, onDeleteModule
 }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
@@ -45,18 +66,23 @@ const Dashboard: React.FC<DashboardProps> = ({
       textsToRead.push({ id: `module-${module.id}-title`, text: translate(module.title) });
       textsToRead.push({ id: `module-${module.id}-hazard`, text: translate(module.hazardType) });
       textsToRead.push({ id: `module-${module.id}-desc`, text: translate(module.description) });
-      const score = quizScores[module.quizId];
-      if (score) {
-        const progress = 100;
-        textsToRead.push({ id: `module-${module.id}-progress-label`, text: translate('Progress') });
-        textsToRead.push({ id: `module-${module.id}-progress-status`, text: `${progress}% ${translate('Complete')}` });
-        textsToRead.push({ id: `module-${module.id}-score`, text: `${translate('Quiz Score')}: ${score.score}/${score.totalQuestions}` });
-      }
+      
+      const progress = module.progress || 0;
+      textsToRead.push({ id: `module-${module.id}-progress-label`, text: translate('Progress') });
+      textsToRead.push({ id: `module-${module.id}-progress-status`, text: `${progress}%` });
+
+      const quizScore = quizScores[module.quizId || ''];
+      const labScore = labScores[module.id];
+      const quizText = quizScore ? `${translate('Quiz Score')}: ${quizScore.score}/${quizScore.totalQuestions}` : translate('Quiz not taken.');
+      const labText = labScore ? `${translate('Lab Score')}: ${labScore.score}%` : translate('Lab not taken.');
+      
+      textsToRead.push({ id: `module-${module.id}-scores`, text: `${quizText}. ${labText}.` });
+
       textsToRead.push({ id: `module-${module.id}-read-btn`, text: translate('Read Module') });
       textsToRead.push({ id: `module-${module.id}-quiz-btn`, text: translate('Take Quiz') });
     });
     registerTexts(textsToRead);
-  }, [modules, quizScores, registerTexts, translate, headerText, subHeaderText]);
+  }, [modules, quizScores, labScores, registerTexts, translate, headerText, subHeaderText]);
 
   return (
     <div>
@@ -90,19 +116,24 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {modules.map(module => {
-          const score = quizScores[module.quizId];
-          const progress = score ? 100 : 0;
           return (
             <ModuleCard
               key={module.id}
               module={module}
               onSelectModule={onSelectModule}
               onStartQuiz={onStartQuiz}
-              quizScore={quizScores[module.quizId]}
-              progress={progress}
+              quizScore={quizScores[module.quizId || '']}
+              labScore={labScores[module.id]}
+              progress={module.progress || 0}
+              currentUser={user}
+              onEdit={onEditModule}
+              onDelete={onDeleteModule}
             />
           );
         })}
+         {user?.role === UserRole.GOVERNMENT_OFFICIAL && (
+            <AddModuleCard onClick={onAddModule} />
+        )}
       </div>
     </div>
   );

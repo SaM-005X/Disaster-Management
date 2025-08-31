@@ -15,6 +15,7 @@ export enum UserRole {
   PARENT = 'Parent',
   SUPER_ADMIN = 'Super Admin',
   GOVERNMENT_OFFICIAL = 'Government Official',
+  USER = 'User',
 }
 
 export enum HazardType {
@@ -35,11 +36,12 @@ export interface Institution {
   phoneNumber: string;
 }
 
-export type AvatarStyle = 'default' | 'teal' | 'amber' | 'rose';
+export type AvatarStyle = 'default' | 'teal' | 'amber' | 'rose' | 'purple';
 
 export interface User {
   id: string;
   name: string;
+  email?: string;
   password?: string;
   role: UserRole;
   institutionName: string;
@@ -79,7 +81,8 @@ export interface LearningModule {
   regionTags: string[];
   thumbnailUrl: string;
   content: ModuleContent[];
-  quizId: string;
+  quizId: string | null;
+  hasLab: boolean;
   references?: { title: string; url: string }[];
   progress?: number;
 }
@@ -138,13 +141,12 @@ export interface ReliefCamp {
 }
 
 export interface NewsArticle {
+  id: string;
   title: string;
   summary: string;
   imageUrl: string;
   source: string; // e.g., "Reuters"
   link: string; // URL to the full article
-  isLocal?: boolean;
-  status?: 'pending' | 'approved';
   type?: 'latest' | 'previous';
   isSummarizing?: boolean;
 }
@@ -198,4 +200,17 @@ export interface AINote {
   isCompleted: boolean;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+}
+
+export interface ModelSimulationScenario {
+    scenarioText: string;
+    type: 'multiple-choice' | 'short-answer';
+    choices?: string[];
+    correctAnswer?: string;
+    modelAnswer?: string;
+}
+
+export interface ModelSimulationGuide {
+    moduleId: string;
+    scenarios: ModelSimulationScenario[];
 }

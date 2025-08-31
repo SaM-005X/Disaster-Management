@@ -12,10 +12,10 @@ const TranslationContext = createContext<TranslationContextType | undefined>(und
 
 export const SUPPORTED_LANGUAGES: Record<string, string> = {
     'en': 'English',
-    'es': 'Español',
-    'hi': 'हिन्दी',
-    'fr': 'Français',
-    'de': 'Deutsch',
+    'hi': 'हिन्दी',    // Hindi
+    'bn': 'বাংলা',     // Bengali
+    'ta': 'தமிழ்',      // Tamil
+    'te': 'తెలుగు',     // Telugu
 };
 
 export const TranslationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -79,7 +79,7 @@ export const TranslationProvider: React.FC<{ children: React.ReactNode }> = ({ c
            queue.current.add(text);
            setIsTranslating(true);
            if (debounceTimer.current) clearTimeout(debounceTimer.current);
-           debounceTimer.current = setTimeout(processQueue, 200);
+           debounceTimer.current = setTimeout(processQueue, 300); // Increased debounce time for stability
         }
         
         return text; // Return original text for now

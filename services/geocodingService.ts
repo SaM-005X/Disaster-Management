@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type } from '@google/genai';
-import { handleApiError } from './apiErrorHandler';
+import { Type } from '@google/genai';
+import { generateContent } from './aiService';
 
 const geocodingCache = new Map<string, { lat: number; lon: number }>();
 const reverseGeocodingCache = new Map<string, string>();
@@ -10,14 +10,12 @@ export async function getCoordinatesForLocation(locationName: string): Promise<{
         return geocodingCache.get(cacheKey)!;
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
     const prompt = `Find the geographic coordinates (latitude and longitude) for the following location: "${locationName}".
     
     Respond ONLY with a valid JSON object with "lat" and "lon" keys. Example: { "lat": 40.7128, "lon": -74.0060 }`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -44,8 +42,7 @@ export async function getCoordinatesForLocation(locationName: string): Promise<{
         return coords;
 
     } catch (error) {
-        const errorMessage = handleApiError(error);
-        throw new Error(`Failed to get coordinates for "${locationName}": ${errorMessage}`);
+        throw new Error(`Failed to get coordinates for "${locationName}": ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -55,13 +52,11 @@ export async function getLocationNameForCoordinates(lat: number, lon: number): P
         return reverseGeocodingCache.get(cacheKey)!;
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
     const prompt = `Provide a concise location name (e.g., "City, Country") for the coordinates: latitude ${lat}, longitude ${lon}.
     Respond ONLY with the location name as a plain string, without any introductory text, labels, or markdown.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
@@ -75,8 +70,7 @@ export async function getLocationNameForCoordinates(lat: number, lon: number): P
         reverseGeocodingCache.set(cacheKey, locationName);
         return locationName;
     } catch (error) {
-        const errorMessage = handleApiError(error);
-        console.error('Reverse Geocoding API error:', errorMessage);
+        console.error('Reverse Geocoding API error:', error);
         // Fallback to a generic coordinate string if API fails
         return `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
     }

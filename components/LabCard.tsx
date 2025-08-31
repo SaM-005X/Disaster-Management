@@ -1,14 +1,20 @@
 import React from 'react';
-import type { LearningModule, LabScore } from '../types';
+import type { LearningModule, LabScore, User } from '../types';
+import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { BeakerIcon } from './icons/BeakerIcon';
 import { AwardIcon } from './icons/AwardIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { TrashIcon } from './icons/TrashIcon';
 
 interface LabCardProps {
   module: LearningModule;
   labScore?: LabScore;
   onStartSimulation: (module: LearningModule) => void;
   currentlySpokenId: string | null;
+  currentUser: User;
+  onOpenQuizEditor: (forModule: LearningModule) => void;
+  onDisableLab: (moduleId: string) => void;
 }
 
 const getHazardColors = (hazard: string) => {
@@ -24,12 +30,13 @@ const getHazardColors = (hazard: string) => {
   }
 };
 
-const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, currentlySpokenId }) => {
+const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, currentlySpokenId, currentUser, onOpenQuizEditor, onDisableLab }) => {
   const { translate } = useTranslate();
   const isPassed = labScore && labScore.score >= 75;
+  const isOfficial = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden transition-transform duration-300 hover:scale-105 hover:shadow-xl flex flex-col border-t-4 ${getHazardColors(module.hazardType)}`}>
+    <div className={`relative bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden transition-transform duration-300 hover:scale-105 hover:shadow-xl flex flex-col border-t-4 ${getHazardColors(module.hazardType)} group`}>
       <div className="p-5 flex-grow flex flex-col">
         <h3 id={`lab-card-title-${module.id}`} className={`text-xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === `lab-card-title-${module.id}` ? 'tts-highlight' : ''}`}>{translate(module.title)}</h3>
         <p id={`lab-card-type-${module.id}`} className={`text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1 ${currentlySpokenId === `lab-card-type-${module.id}` ? 'tts-highlight' : ''}`}>{translate(module.hazardType)} {translate('Simulation')}</p>
@@ -65,6 +72,25 @@ const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, 
           <span>{isPassed ? translate('Retake Simulation') : translate('Start Simulation')}</span>
         </button>
       </div>
+
+       {isOfficial && (
+        <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+                onClick={() => onOpenQuizEditor(module)}
+                className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md hover:bg-teal-100 dark:hover:bg-gray-700"
+                aria-label={translate('Edit quiz')}
+            >
+                <PencilIcon className="h-5 w-5 text-teal-600 dark:text-teal-400"/>
+            </button>
+            <button 
+                onClick={() => onDisableLab(module.id)}
+                className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full shadow-md hover:bg-red-100 dark:hover:bg-gray-700"
+                aria-label={translate('Disable lab')}
+            >
+                <TrashIcon className="h-5 w-5 text-red-600 dark:text-red-400"/>
+            </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,30 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
-import { fetchNews } from '../services/newsService';
 import { generateSummaryFromTitle } from '../services/summarizationService';
 import type { NewsArticle, User } from '../types';
+import { UserRole } from '../types';
 import NewsCard from './NewsCard';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
-import NewsCreatorModal from './NewsCreatorModal';
+import NewsEditModal from './NewsCreatorModal';
 import ErrorMessage from './ErrorMessage';
 
 interface NewsProps {
     currentUser: User;
+    latestNews: NewsArticle[];
+    previousNews: NewsArticle[];
+    onSave: (article: NewsArticle) => void;
+    onDelete: (articleId: string) => void;
 }
 
-const News: React.FC<NewsProps> = ({ currentUser }) => {
-    const [latestNews, setLatestNews] = useState<NewsArticle[]>([]);
-    const [previousNews, setPreviousNews] = useState<NewsArticle[]>([]);
-    const [localNews, setLocalNews] = useState<NewsArticle[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSave, onDelete }) => {
+    const [displayLatestNews, setDisplayLatestNews] = useState<NewsArticle[]>(latestNews);
+    const [displayPreviousNews, setDisplayPreviousNews] = useState<NewsArticle[]>(previousNews);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalType, setModalType] = useState<'latest' | 'previous'>('latest');
+    const [modalConfig, setModalConfig] = useState<{ article: NewsArticle | null; type: 'latest' | 'previous' }>({ article: null, type: 'latest' });
     
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
+    const isOfficial = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
 
+    useEffect(() => {
+        setDisplayLatestNews(latestNews);
+    }, [latestNews]);
+
+    useEffect(() => {
+        setDisplayPreviousNews(previousNews);
+    }, [previousNews]);
+
+    // This effect enriches AI-fetched articles that have a poor summary
     useEffect(() => {
         const MIN_SUMMARY_WORDS = 5;
 
@@ -32,111 +45,67 @@ const News: React.FC<NewsProps> = ({ currentUser }) => {
             articles: NewsArticle[], 
             setNewsState: React.Dispatch<React.SetStateAction<NewsArticle[]>>
         ) => {
-            const articlesToProcess = [...articles];
-
-            for (let i = 0; i < articlesToProcess.length; i++) {
-                const article = articlesToProcess[i];
-                const needsEnrichment = !article.isLocal && (!article.summary || article.summary.split(' ').length < MIN_SUMMARY_WORDS);
+             for (let i = 0; i < articles.length; i++) {
+                const article = articles[i];
+                const needsEnrichment = !article.id.startsWith('user-') && (!article.summary || article.summary.split(' ').length < MIN_SUMMARY_WORDS);
 
                 if (needsEnrichment) {
                     setNewsState(currentNews => 
-                        currentNews.map(a => a.link === article.link ? { ...a, isSummarizing: true } : a)
+                        currentNews.map(a => a.id === article.id ? { ...a, isSummarizing: true } : a)
                     );
 
                     try {
                         const newSummary = await generateSummaryFromTitle(article.title, article.summary);
                         setNewsState(currentNews => 
-                            currentNews.map(a => a.link === article.link ? { ...a, summary: newSummary, isSummarizing: false } : a)
+                            currentNews.map(a => a.id === article.id ? { ...a, summary: newSummary, isSummarizing: false } : a)
                         );
                     } catch (e) {
                         console.error("Failed to generate summary for:", article.title, e);
                         setNewsState(currentNews => 
-                            currentNews.map(a => a.link === article.link ? { ...a, isSummarizing: false } : a)
+                            currentNews.map(a => a.id === article.id ? { ...a, isSummarizing: false } : a)
                         );
                     }
                 }
             }
         };
 
-        const loadNews = async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
-                
-                try {
-                    const savedLocalNewsJSON = localStorage.getItem('userNewsArticles');
-                    if (savedLocalNewsJSON) {
-                        const savedLocalNews = JSON.parse(savedLocalNewsJSON);
-                        if (Array.isArray(savedLocalNews)) {
-                            setLocalNews(savedLocalNews);
-                        }
-                    }
-                } catch (e) {
-                    console.error("Failed to load or parse user news articles from localStorage", e);
-                    localStorage.removeItem('userNewsArticles');
-                }
+        enrichAndSetNews(displayLatestNews, setDisplayLatestNews);
+        enrichAndSetNews(displayPreviousNews, setDisplayPreviousNews);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [latestNews, previousNews]); // Run only when props change
 
-                const [latest, previous] = await Promise.all([
-                    fetchNews('latest'),
-                    fetchNews('previous')
-                ]);
-                
-                setLatestNews(latest);
-                setPreviousNews(previous);
-
-                enrichAndSetNews(latest, setLatestNews);
-                enrichAndSetNews(previous, setPreviousNews);
-
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError(translate('An unknown error occurred while fetching news.'));
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        loadNews();
-    }, [translate]);
-
-    const handleOpenModal = (type: 'latest' | 'previous') => {
-        setModalType(type);
+    const handleOpenModal = (article: NewsArticle | null, type: 'latest' | 'previous') => {
+        setModalConfig({ article, type });
         setIsModalOpen(true);
     };
     
-    const handleSaveArticle = (newArticleData: Omit<NewsArticle, 'isLocal' | 'status'>) => {
-        const newArticle: NewsArticle = {
-            ...newArticleData,
-            isLocal: true,
-            status: 'pending',
+    const handleSaveArticle = (articleData: Omit<NewsArticle, 'id'> & { id?: string }) => {
+        const finalArticleData: NewsArticle = {
+            id: articleData.id || '',
+            title: articleData.title,
+            summary: articleData.summary,
+            imageUrl: articleData.imageUrl,
+            source: articleData.source,
+            link: articleData.link,
+            type: articleData.type,
         };
-        const updatedLocalNews = [...localNews, newArticle];
-        setLocalNews(updatedLocalNews);
-        try {
-            localStorage.setItem('userNewsArticles', JSON.stringify(updatedLocalNews));
-        } catch (e) {
-            console.error("Failed to save user news articles to localStorage", e);
-        }
+        onSave(finalArticleData);
         setIsModalOpen(false);
     };
 
     const headerText = translate('News Portal');
     const subHeaderText = translate('Stay informed about recent meteorological events and learn from historical disasters.');
 
-    const allLatestNews = [...latestNews, ...localNews.filter(a => a.type === 'latest')];
-    const allPreviousNews = [...previousNews, ...localNews.filter(a => a.type === 'previous')];
-
     useEffect(() => {
         const textsToRead: TTSText[] = [{ id: 'news-header', text: headerText }, { id: 'news-subheader', text: subHeaderText }];
-        if (allLatestNews.length > 0) {
+        if (displayLatestNews.length > 0) {
             textsToRead.push({ id: 'latest-findings-header', text: translate('Latest Findings') });
         }
-        if (allPreviousNews.length > 0) {
+        if (displayPreviousNews.length > 0) {
             textsToRead.push({ id: 'previous-findings-header', text: translate('Previous Findings') });
         }
         registerTexts(textsToRead);
-    }, [allLatestNews, allPreviousNews, headerText, subHeaderText, translate, registerTexts]);
+    }, [displayLatestNews, displayPreviousNews, headerText, subHeaderText, translate, registerTexts]);
 
     const renderSkeletons = () => (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -165,14 +134,16 @@ const News: React.FC<NewsProps> = ({ currentUser }) => {
             <section className="mb-12">
                 <div className="flex justify-between items-center mb-6 border-b-2 border-teal-500 pb-2">
                     <h2 id="latest-findings-header" className={`text-3xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'latest-findings-header' ? 'tts-highlight' : ''}`}>{translate('Latest Findings')}</h2>
-                    <button onClick={() => handleOpenModal('latest')} className="flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-500 dark:text-teal-400 dark:hover:text-teal-300 transition-colors">
-                        <PlusCircleIcon className="h-6 w-6"/>
-                        <span>{translate('Add News Article')}</span>
-                    </button>
+                    {isOfficial && (
+                        <button onClick={() => handleOpenModal(null, 'latest')} className="flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-500 dark:text-teal-400 dark:hover:text-teal-300 transition-colors">
+                            <PlusCircleIcon className="h-6 w-6"/>
+                            <span>{translate('Add News Article')}</span>
+                        </button>
+                    )}
                 </div>
                 {isLoading ? renderSkeletons() : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {allLatestNews.map((article, index) => <NewsCard key={`latest-${article.link}-${index}`} article={article} />)}
+                        {displayLatestNews.map((article) => <NewsCard key={article.id} article={article} currentUser={currentUser} onEdit={handleOpenModal} onDelete={onDelete} />)}
                     </div>
                 )}
             </section>
@@ -180,24 +151,27 @@ const News: React.FC<NewsProps> = ({ currentUser }) => {
              <section>
                 <div className="flex justify-between items-center mb-6 border-b-2 border-gray-400 pb-2">
                     <h2 id="previous-findings-header" className={`text-3xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'previous-findings-header' ? 'tts-highlight' : ''}`}>{translate('Previous Findings')}</h2>
-                    <button onClick={() => handleOpenModal('previous')} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-500 dark:text-gray-400 dark:hover:text-gray-300 transition-colors">
-                        <PlusCircleIcon className="h-6 w-6"/>
-                        <span>{translate('Add News Article')}</span>
-                    </button>
+                     {isOfficial && (
+                        <button onClick={() => handleOpenModal(null, 'previous')} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-500 dark:text-gray-400 dark:hover:text-gray-300 transition-colors">
+                            <PlusCircleIcon className="h-6 w-6"/>
+                            <span>{translate('Add News Article')}</span>
+                        </button>
+                     )}
                 </div>
                 {isLoading ? renderSkeletons() : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {allPreviousNews.map((article, index) => <NewsCard key={`previous-${article.link}-${index}`} article={article} />)}
+                        {displayPreviousNews.map((article) => <NewsCard key={article.id} article={article} currentUser={currentUser} onEdit={handleOpenModal} onDelete={onDelete} />)}
                     </div>
                 )}
             </section>
             
             {isModalOpen && (
-                <NewsCreatorModal 
+                <NewsEditModal 
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
                     onSave={handleSaveArticle}
-                    type={modalType}
+                    type={modalConfig.type}
+                    existingArticle={modalConfig.article}
                     currentUser={currentUser}
                 />
             )}

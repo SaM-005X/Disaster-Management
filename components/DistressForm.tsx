@@ -10,19 +10,24 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { PlayIcon } from './icons/PlayIcon';
 import { PauseIcon } from './icons/PauseIcon';
 import { StopIcon } from './icons/StopIcon';
+import { SaveIcon } from './icons/SaveIcon';
+import ErrorMessage from './ErrorMessage';
 
 interface DistressFormProps {
   user: User;
   onBack: () => void;
+  onSubmit: (formData: { name: string; contact: string; location: string }) => boolean;
+  isOnline: boolean;
 }
 
-const DistressForm: React.FC<DistressFormProps> = ({ user, onBack }) => {
+const DistressForm: React.FC<DistressFormProps> = ({ user, onBack, onSubmit, isOnline }) => {
     const [name, setName] = useState(user.name);
     const [contact, setContact] = useState('');
     const [location, setLocation] = useState('');
     const [locationStatus, setLocationStatus] = useState<'idle' | 'fetching' | 'success' | 'error'>('idle');
     const [locationError, setLocationError] = useState('');
-    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [formError, setFormError] = useState('');
+    const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'saved'>('idle');
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId, toggleReadAloud, stopReadAloud, isPlaying, isPaused, hasQueue } = useTTS();
     
@@ -67,22 +72,32 @@ const DistressForm: React.FC<DistressFormProps> = ({ user, onBack }) => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name || !contact || !location) {
-            alert(translate('Please fill all fields.'));
+        setFormError('');
+        if (!name.trim() || !contact.trim() || !location.trim()) {
+            setFormError(translate('Please fill all fields before sending the alert.'));
             return;
         }
-        // In a real application, this would send data to a backend server
-        // which would then contact emergency services.
-        console.log('Distress call submitted:', { name, contact, location });
-        setIsSubmitted(true);
+        const wasSent = onSubmit({ name, contact, location });
+        setSubmissionStatus(wasSent ? 'success' : 'saved');
     };
 
-    if (isSubmitted) {
+    if (submissionStatus !== 'idle') {
+        const isSuccess = submissionStatus === 'success';
         return (
             <div className="max-w-2xl mx-auto text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <CheckCircleIcon className="h-20 w-20 text-emerald-500 mx-auto" />
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-white mt-4">{translate('Alert Sent!')}</h2>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">{translate('Help is on the way. The authorities have been notified with your details. Please move to a safe location if possible and wait for contact.')}</p>
+                {isSuccess ? 
+                    <CheckCircleIcon className="h-20 w-20 text-emerald-500 mx-auto" /> :
+                    <SaveIcon className="h-20 w-20 text-sky-500 mx-auto" />
+                }
+                <h2 className="text-3xl font-bold text-gray-800 dark:text-white mt-4">
+                    {isSuccess ? translate('Alert Sent!') : translate('Alert Saved!')}
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                    {isSuccess ? 
+                        translate('Help is on the way. The authorities have been notified with your details. Please move to a safe location if possible and wait for contact.') :
+                        translate('You are currently offline. Your distress call has been saved and will be sent automatically as soon as your connection is restored.')
+                    }
+                </p>
                 <button onClick={onBack} className="mt-6 bg-teal-600 text-white font-bold py-3 px-8 rounded-full hover:bg-teal-700 transition-colors">
                     {translate('Back to Dashboard')}
                 </button>
@@ -128,6 +143,7 @@ const DistressForm: React.FC<DistressFormProps> = ({ user, onBack }) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {formError && <ErrorMessage message={formError} />}
                     <div>
                         <label htmlFor="name" id="distress-name-label" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'distress-name-label' ? 'tts-highlight' : ''}`}>{translate('Your Name')}</label>
                         <input
@@ -191,6 +207,9 @@ const DistressForm: React.FC<DistressFormProps> = ({ user, onBack }) => {
                            {translate('SEND EMERGENCY ALERT')}
                         </span>
                     </button>
+                    {!isOnline && (
+                        <p className="text-center text-sm text-amber-600 dark:text-amber-400 font-semibold">{translate('You are offline. Your alert will be saved and sent when you reconnect.')}</p>
+                    )}
                 </form>
             </div>
         </div>

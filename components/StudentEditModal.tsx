@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { User } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
+import ErrorMessage from './ErrorMessage';
 
 interface StudentEditModalProps {
   student: User | null;
@@ -19,6 +20,7 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
     email: '',
     password: '',
   });
+  const [error, setError] = useState('');
 
   const isEditing = !!student;
   const isEmployee = userType === 'employee';
@@ -44,14 +46,15 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     if (isEditing && student) {
       onSave({ ...student, name: formData.name, class: formData.class, rollNumber: formData.rollNumber });
     } else {
         if (!formData.email || !formData.password) {
-            const alertMessage = isEmployee
+            const errorMessage = isEmployee
                 ? translate('Email and a temporary password are required to add a new employee.')
                 : translate('Email and a temporary password are required to add a new student.');
-            alert(alertMessage);
+            setError(errorMessage);
             return;
         }
       onSave(formData);
@@ -93,7 +96,8 @@ const StudentEditModal: React.FC<StudentEditModalProps> = ({ student, onSave, on
                 <XIcon className="h-6 w-6" />
               </button>
             </div>
-            <div className="space-y-4">
+            {error && <ErrorMessage message={error} />}
+            <div className="space-y-4 mt-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {nameLabel}

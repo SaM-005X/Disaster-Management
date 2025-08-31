@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import type { User } from '../types';
+import { UserRole } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, TTSText } from '../contexts/TTSContext';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
@@ -23,17 +24,32 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
   });
 
   const achievementTitle = translate('Mastery in Comprehensive Disaster Preparedness');
-
   const achievementReason = translate('for successfully completing all simulations and demonstrating mastery across all disaster preparedness topics.');
+  
+  // Role-aware labels for certificate details
+  const classLabel = user.role === UserRole.TEACHER 
+    ? translate('Department / Subject') 
+    : user.role === UserRole.GOVERNMENT_OFFICIAL
+    ? translate('Department')
+    : user.role === UserRole.USER
+    ? translate('Community / Group')
+    : translate('Class / Grade');
+
+  const institutionLabel = user.role === UserRole.GOVERNMENT_OFFICIAL
+    ? translate('Ministry')
+    : user.role === UserRole.USER
+    ? translate('City / Region')
+    : translate('Institution');
 
   useEffect(() => {
     const textsToRead: TTSText[] = [
-      { id: 'cert-inst-name', text: translate(user.institutionName) },
-      { id: 'cert-platform-name', text: translate('EduSafe Platform') },
+      { id: 'cert-platform-name', text: translate('AlertIQ Platform') },
       { id: 'cert-title', text: translate('Certificate of Preparedness') },
       { id: 'cert-presented-to', text: translate('This certificate is proudly presented to') },
       { id: 'cert-user-name', text: user.name },
-      { id: 'cert-user-details', text: `${translate(user.role)}: ${translate(user.class)}` },
+      { id: 'cert-user-role', text: `${translate('Role')}: ${translate(user.role)}` },
+      { id: 'cert-user-class', text: `${classLabel}: ${translate(user.class)}` },
+      { id: 'cert-user-institution', text: `${institutionLabel}: ${translate(user.institutionName)}` },
       { id: 'cert-reason', text: achievementReason },
       { id: 'cert-achievement-title', text: achievementTitle },
       { id: 'cert-date-label', text: translate('Date of Completion') },
@@ -41,10 +57,10 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
       { id: 'cert-issued-by', text: translate('Issued in collaboration with') },
       { id: 'cert-gov-of-india', text: translate('Government of India') },
       { id: 'cert-auth-label', text: translate('Authorized by') },
-      { id: 'cert-auth-value', text: translate('EduSafe Platform & NDMA') },
+      { id: 'cert-auth-value', text: translate('AlertIQ Platform & NDMA') },
     ];
     registerTexts(textsToRead);
-  }, [user, achievementTitle, achievementReason, completionDate, registerTexts, translate]);
+  }, [user, achievementTitle, achievementReason, completionDate, classLabel, institutionLabel, registerTexts, translate]);
 
   const handlePrint = () => {
     window.print();
@@ -75,17 +91,20 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
             <div className="relative z-10">
                 <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
                     <ShieldCheckIcon className="h-16 w-16 text-teal-600 dark:text-teal-400 mx-auto" />
-                    <h1 id="cert-inst-name" className={`text-2xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'cert-inst-name' ? 'tts-highlight' : ''}`}>{translate(user.institutionName)}</h1>
-                    <p id="cert-platform-name" className={`text-lg text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'cert-platform-name' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform')}</p>
+                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white mt-4">{translate('AlertIQ Platform')}</h1>
+                    <p id="cert-platform-name" className={`text-lg text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'cert-platform-name' ? 'tts-highlight' : ''}`}>{translate('Certificate of Preparedness')}</p>
                 </div>
-                <div className="my-10 text-center">
-                    <p id="cert-title" className={`text-xl text-gray-600 dark:text-gray-300 uppercase tracking-widest ${currentlySpokenId === 'cert-title' ? 'tts-highlight' : ''}`}>{translate('Certificate of Preparedness')}</p>
+                <div className="my-8 text-center">
                     <AwardIcon className="h-24 w-24 text-amber-400 mx-auto my-6" />
                     <p id="cert-presented-to" className={`text-lg text-gray-600 dark:text-gray-300 ${currentlySpokenId === 'cert-presented-to' ? 'tts-highlight' : ''}`}>{translate('This certificate is proudly presented to')}</p>
                     <p id="cert-user-name" className={`text-5xl font-bold text-gray-900 dark:text-white my-2 script-font ${currentlySpokenId === 'cert-user-name' ? 'tts-highlight' : ''}`}>{user.name}</p>
-                    <p id="cert-user-details" className={`text-xl text-gray-500 dark:text-gray-400 mt-1 mb-4 ${currentlySpokenId === 'cert-user-details' ? 'tts-highlight' : ''}`}>
-                        {translate(user.role)}: {translate(user.class)}
-                    </p>
+                    
+                    <div className="mt-2 mb-4 text-gray-600 dark:text-gray-400 text-base space-y-1">
+                        <p id="cert-user-role"><strong>{translate('Role')}:</strong> {translate(user.role)}</p>
+                        <p id="cert-user-class"><strong>{classLabel}:</strong> {translate(user.class)}</p>
+                        <p id="cert-user-institution"><strong>{institutionLabel}:</strong> {translate(user.institutionName)}</p>
+                    </div>
+
                     <p id="cert-reason" className={`text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto ${currentlySpokenId === 'cert-reason' ? 'tts-highlight' : ''}`}>
                         {achievementReason}
                     </p>
@@ -103,7 +122,7 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
                      </div>
                      <div className="text-center sm:text-right">
                         <p id="cert-auth-label" className={`font-bold text-gray-700 dark:text-gray-200 ${currentlySpokenId === 'cert-auth-label' ? 'tts-highlight' : ''}`}>{translate('Authorized by')}</p>
-                        <p id="cert-auth-value" className={`text-gray-600 dark:text-gray-400 italic ${currentlySpokenId === 'cert-auth-value' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform & NDMA')}</p>
+                        <p id="cert-auth-value" className={`text-gray-600 dark:text-gray-400 italic ${currentlySpokenId === 'cert-auth-value' ? 'tts-highlight' : ''}`}>{translate('AlertIQ Platform & NDMA')}</p>
                     </div>
                 </div>
             </div>

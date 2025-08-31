@@ -6,11 +6,11 @@ const AboutUs: React.FC = () => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
 
-    const title = translate('About EduSafe');
+    const title = translate('About AlertIQ');
     const problemTitle = translate('The Problem: A Gap in Preparedness');
     const problemText = translate("India is a land of immense diversity and resilience, but it's also vulnerable to a range of natural disasters. We observed a troubling paradox: while disaster management plans existed on paper, a culture of genuine preparedness was missing where it matters most—in our schools and colleges. Students and staff, the heart of our communities, were often left unprepared to face crises like earthquakes, floods, or fires.");
-    const solutionTitle = translate('Our Solution: The EduSafe Platform');
-    const solutionText = translate("EduSafe is our answer. It's more than just an app; it's a comprehensive digital ecosystem designed to build disaster resilience from the ground up. We do this by focusing on key pillars like engaging education, practical training via virtual drills, localized awareness, and connected communities.");
+    const solutionTitle = translate('Our Solution: The AlertIQ Platform');
+    const solutionText = translate("AlertIQ is our answer. It's more than just an app; it's a comprehensive digital ecosystem designed to build disaster resilience from the ground up. We do this by focusing on key pillars like engaging education, practical training via virtual drills, localized awareness, and connected communities.");
     const missionTitle = translate('Our Mission');
     const missionText = translate("We are a team of dedicated students, developers, and visionaries committed to creating a tangible impact. Our goal is to empower the next generation, making them assets to their communities and fostering a nationwide culture of safety and preparedness.");
 

@@ -77,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
           {/* App Branding */}
           <ShieldCheckIcon className="h-8 w-8 text-teal-600 dark:text-teal-400 flex-shrink-0" />
           <h1 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
-            {translate('Disaster Ready')}
+            {translate('Surksha')}
           </h1>
         </div>
         <div className="flex items-center space-x-1 sm:space-x-2">
@@ -128,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
                         </div>
                         <div>
                             <label htmlFor="tts-pitch" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {translate('Pitch')}: <span className="font-bold">{pitch.toFixed(1)}</span>
+                                {translate('Voice')}: <span className="font-bold">{pitch > 1 ? translate('Female') : translate('Male')}</span>
                             </label>
                             <input
                                 id="tts-pitch"

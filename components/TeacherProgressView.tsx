@@ -16,15 +16,19 @@ interface TeacherProgressViewProps {
   modules: LearningModule[];
   studentData: User[];
   progressData: Record<string, StudentProgress>;
+  certificationStatus: Record<string, boolean>;
   onAddStudent: (studentData: Omit<User, 'id' | 'avatarUrl' | 'institutionId' | 'role'>) => void;
   onUpdateStudent: (student: User) => void;
   onDeleteStudent: (studentId: string) => void;
+  onToggleCertification: (studentId: string) => void;
 }
 
-const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ user, modules, studentData, progressData, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
+const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ 
+    user, modules, studentData, progressData, certificationStatus,
+    onAddStudent, onUpdateStudent, onDeleteStudent, onToggleCertification 
+}) => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
-    const [certificationStatus, setCertificationStatus] = useState<Record<string, boolean>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<User | null>(null);
 
@@ -45,21 +49,6 @@ const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ user, modules
     const nameHeader = isOfficial ? translate('Employee Name') : translate('Student Name');
     const idHeader = isOfficial ? translate('Employee ID') : translate('Roll No.');
 
-
-    useEffect(() => {
-        // Synchronize certificationStatus with the current list of students.
-        // This prevents dangling state when a student is deleted, making the component more robust.
-        const studentIds = new Set(studentData.map(s => s.id));
-        setCertificationStatus(prevStatus => {
-            const newStatus: Record<string, boolean> = {};
-            for (const id in prevStatus) {
-                if (studentIds.has(id)) {
-                    newStatus[id] = prevStatus[id];
-                }
-            }
-            return newStatus;
-        });
-    }, [studentData]);
 
     useEffect(() => {
         const textsToRead: TTSText[] = [];
@@ -127,10 +116,6 @@ const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ user, modules
             value: data.total > 0 ? Math.round((data.certified / data.total) * 100) : 0,
         }));
     }, [studentProgressList, certificationStatus, isOfficial]);
-    
-    const toggleCertification = (studentId: string) => {
-        setCertificationStatus(prev => ({...prev, [studentId]: !prev[studentId]}));
-    };
 
     const handleOpenAddModal = () => {
         setEditingStudent(null);
@@ -210,7 +195,7 @@ const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ user, modules
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <button
-                                            onClick={() => toggleCertification(student.id)}
+                                            onClick={() => onToggleCertification(student.id)}
                                             className={`w-full flex items-center justify-center gap-2 text-xs font-bold py-2 px-3 rounded-full transition-colors ${
                                                 certificationStatus[student.id] 
                                                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
@@ -223,11 +208,9 @@ const TeacherProgressView: React.FC<TeacherProgressViewProps> = ({ user, modules
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center items-center gap-2">
-                                            {/* Fix: Use isOfficial instead of undefined isEmployee */}
                                             <button onClick={() => handleOpenEditModal(student)} className="p-2 text-gray-500 hover:text-teal-600 dark:text-gray-400 dark:hover:text-teal-400" aria-label={isOfficial ? translate("Edit employee") : translate("Edit student")}>
                                                 <PencilIcon className="h-5 w-5" />
                                             </button>
-                                            {/* Fix: Use isOfficial instead of undefined isEmployee */}
                                             <button onClick={() => onDeleteStudent(student.id)} className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400" aria-label={isOfficial ? translate("Delete employee") : translate("Delete student")}>
                                                 <TrashIcon className="h-5 w-5" />
                                             </button>

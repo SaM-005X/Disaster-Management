@@ -59,6 +59,15 @@ const Avatar: React.FC<AvatarProps> = ({ mood, className = 'h-10 w-10', style = 
             <stop offset="0%" stopColor="#e11d48" />
             <stop offset="100%" stopColor="#9f1239" />
           </linearGradient>
+          {/* Purple Style */}
+          <linearGradient id="robot-gradient-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f3e8ff" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+          <linearGradient id="robot-gradient-dark-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#9333ea" />
+            <stop offset="100%" stopColor="#6b21a8" />
+          </linearGradient>
         </defs>
         
         {/* Antenna */}

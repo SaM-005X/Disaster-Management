@@ -10,6 +10,7 @@ import { EyeIcon } from './icons/EyeIcon';
 interface AlertsBannerProps {
   location: string;
   onClose: () => void;
+  isOnline: boolean;
 }
 
 const getAlertStyles = (severity: AlertSeverity): { bg: string; icon: React.ReactNode } => {
@@ -37,7 +38,7 @@ const getAlertStyles = (severity: AlertSeverity): { bg: string; icon: React.Reac
   }
 };
 
-const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
+const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose, isOnline }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +46,10 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
   const { translate } = useTranslate();
 
   useEffect(() => {
+    if (!isOnline) {
+      setIsLoading(false);
+      return;
+    }
     const getAlerts = async () => {
       try {
         setIsLoading(true);
@@ -66,7 +71,7 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
       }
     };
     getAlerts();
-  }, [location, translate]);
+  }, [location, translate, isOnline]);
 
   useEffect(() => {
     if (alerts.length > 1) {
@@ -76,6 +81,20 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
       return () => clearInterval(timer);
     }
   }, [alerts.length]);
+
+  if (!isOnline) {
+    return (
+        <div className="relative w-full p-4 rounded-lg text-white shadow-lg backdrop-blur-md border bg-gray-500/90 dark:bg-gray-700/90 border-gray-700 dark:border-gray-500" role="status">
+            <div className="flex items-center">
+                <div className="flex-shrink-0"><InfoIcon className="h-6 w-6" /></div>
+                <div className="ml-3 flex-1">
+                    <p className="font-bold">{translate('You are currently offline')}</p>
+                    <p className="text-sm">{translate('Alerts are unavailable offline.')}</p>
+                </div>
+            </div>
+        </div>
+    );
+  }
 
   if (isLoading) {
     return (

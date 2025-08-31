@@ -1,5 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
-import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 const safeMarkdownToHTML = (text: string | undefined | null): string => {
     if (!text) return '';
@@ -25,7 +24,6 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
 
 
 export async function summarizeContent(content: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Summarize the following text into a few key bullet points. The text is from a user's personal notebook. Use markdown for formatting.
 
 Text to summarize:
@@ -34,18 +32,17 @@ ${content}
 ---`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
     return safeMarkdownToHTML(response.text.trim());
   } catch (error) {
-    throw new Error(handleApiError(error));
+    throw error; // The aiService wrapper already formats the error
   }
 }
 
 export async function suggestNextSteps(content: string, title: string): Promise<string> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Based on the following note/task from a user's notebook, suggest 3-5 actionable next steps or related ideas. The suggestions should be concise and formatted as a markdown list.
 
 Note Title: "${title}"
@@ -55,18 +52,17 @@ ${content}
 ---`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
         return safeMarkdownToHTML(response.text.trim());
     } catch (error) {
-        throw new Error(handleApiError(error));
+        throw error;
     }
 }
 
 export async function explainConcept(content: string): Promise<string> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Act as a helpful tutor. Explain the key concepts found in the following text in a simple and clear way. Use analogies if helpful. Format the explanation with markdown for readability.
 
 Text to explain:
@@ -74,12 +70,12 @@ Text to explain:
 ${content}
 ---`;
     try {
-        const response = await ai.models.generateContent({
+        const response = await generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
         return safeMarkdownToHTML(response.text.trim());
     } catch (error) {
-        throw new Error(handleApiError(error));
+        throw error;
     }
 }

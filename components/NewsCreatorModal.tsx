@@ -1,25 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { NewsArticle, User } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
+import ErrorMessage from './ErrorMessage';
 
-interface NewsCreatorModalProps {
+interface NewsEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (articleData: Omit<NewsArticle, 'isLocal' | 'status'>) => void;
+  onSave: (articleData: Omit<NewsArticle, 'id'> & { id?: string }) => void;
   type: 'latest' | 'previous';
+  existingArticle: NewsArticle | null;
   currentUser: User;
 }
 
-const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, onSave, type, currentUser }) => {
+const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, type, existingArticle, currentUser }) => {
   const { translate } = useTranslate();
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
     imageUrl: '',
-    source: currentUser.name,
+    source: '',
     link: '',
   });
+  const [error, setError] = useState('');
+
+  const isEditing = !!existingArticle;
+
+  useEffect(() => {
+    if (isOpen) {
+        setError('');
+        if (existingArticle) {
+            setFormData({
+                title: existingArticle.title,
+                summary: existingArticle.summary,
+                imageUrl: existingArticle.imageUrl,
+                source: existingArticle.source,
+                link: existingArticle.link,
+            });
+        } else {
+            // Reset for new article
+            setFormData({
+                title: '',
+                summary: '',
+                imageUrl: '',
+                source: currentUser.name, // Default source to the current user
+                link: '',
+            });
+        }
+    }
+  }, [isOpen, existingArticle, currentUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -28,14 +57,21 @@ const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.summary) {
-        alert(translate('Title and summary are required.'));
+    setError('');
+    if (!formData.title.trim() || !formData.summary.trim()) {
+        setError(translate('Title and summary are required.'));
         return;
     }
-    onSave({ ...formData, type });
+    onSave({
+        ...formData,
+        id: existingArticle?.id,
+        type: existingArticle?.type || type,
+    });
   };
 
   if (!isOpen) return null;
+
+  const modalTitle = isEditing ? translate('Edit News Article') : translate('Create New News Article');
 
   return (
     <div
@@ -49,7 +85,7 @@ const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, on
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 id="news-creator-title" className="text-2xl font-bold text-gray-900 dark:text-white">
-                {translate('Create New News Article')}
+                {modalTitle}
               </h2>
               <button
                 type="button"
@@ -60,7 +96,8 @@ const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, on
                 <XIcon className="h-6 w-6" />
               </button>
             </div>
-            <div className="space-y-4">
+            {error && <ErrorMessage message={error} />}
+            <div className="space-y-4 mt-4">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {translate('Title')}
@@ -148,7 +185,7 @@ const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, on
               type="submit"
               className="bg-teal-600 text-white font-bold py-2 px-4 rounded-full hover:bg-teal-700 transition-colors"
             >
-              {translate('Submit for Review')}
+              {isEditing ? translate('Save Changes') : translate('Add Article')}
             </button>
           </div>
         </form>
@@ -157,4 +194,4 @@ const NewsCreatorModal: React.FC<NewsCreatorModalProps> = ({ isOpen, onClose, on
   );
 };
 
-export default NewsCreatorModal;
+export default NewsEditModal;

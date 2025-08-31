@@ -1,6 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import type { ReliefCamp } from '../types';
-import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 const reliefCache = new Map<string, ReliefCamp[]>();
 
@@ -9,8 +9,6 @@ export async function fetchReliefCamps(lat: number, lon: number): Promise<Relief
   if (reliefCache.has(cacheKey)) {
     return reliefCache.get(cacheKey) || [];
   }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `Act as a relief agency database. Find real, existing relief camps, shelters, or major NGOs (like Red Cross, Oxfam, local government shelters) that provide disaster assistance near the geographic coordinates: latitude ${lat}, longitude ${lon}.
 
@@ -26,7 +24,7 @@ List up to 6 relevant centers. For each center, provide:
 The response MUST be a valid JSON array of objects. Do not include centers that are not real. Prioritize government-run shelters and internationally recognized NGOs if possible. If no specific centers are known, list regional disaster management authority offices.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -61,7 +59,6 @@ The response MUST be a valid JSON array of objects. Do not include centers that 
     return camps;
 
   } catch (error) {
-    const errorMessage = handleApiError(error);
-    throw new Error(`Failed to fetch relief camp data: ${errorMessage}`);
+    throw new Error(`Failed to fetch relief camp data: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

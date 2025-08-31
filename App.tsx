@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { MODULES, QUIZZES } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote } from './types';
+import { MODULES as INITIAL_MODULES, QUIZZES as INITIAL_QUIZZES } from './constants';
+import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote, ModelSimulationGuide, NewsArticle } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -30,8 +30,13 @@ import { useTranslate } from './contexts/TranslationContext';
 import OfflineStatusToast from './components/OfflineStatusToast';
 import News from './components/News';
 import { fetchHistoricalDisasters } from './services/historicalDisasterService';
+import { fetchNews } from './services/newsService';
 import ExitPlanner from './components/ExitPlanner';
 import AINotebook from './components/AINotebook';
+import { supabase } from './services/supabaseClient';
+import ModuleEditModal from './components/ModuleEditModal';
+import QuizEditModal from './components/QuizEditModal';
+import SimulationGuideEditModal from './components/SimulationGuideEditModal';
 
 type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
@@ -50,8 +55,8 @@ const MOCK_RESOURCES: Resource[] = [
 const OfficialBanner: React.FC = () => {
     const { translate } = useTranslate();
     return (
-        <div className="bg-gradient-to-r from-orange-50 via-white to-green-50 dark:from-orange-900/20 dark:via-gray-800/20 dark:to-green-900/20 py-2 text-center shadow-sm">
-            <p className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-gray-700 to-green-700 dark:from-orange-400 dark:via-gray-300 dark:to-green-400">
+        <div className="bg-gradient-to-r from-orange-400 via-white to-green-500 dark:from-orange-500 dark:via-gray-100 dark:to-green-600 py-2 text-center shadow-md">
+            <p className="font-extrabold tracking-wide text-sm sm:text-base text-gray-800 dark:text-black">
                 {translate('Sikshit Bharat, Surakshit Bharat')}
             </p>
         </div>
@@ -63,14 +68,28 @@ const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [studentProgress, setStudentProgress] = useState<StudentProgress | undefined>(undefined);
   const [allProgressData, setAllProgressData] = useState<Record<string, StudentProgress>>({});
+  const [certificationStatus, setCertificationStatus] = useState<Record<string, boolean>>({});
+
+  // Content Management State
+  const [modules, setModules] = useState<LearningModule[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [simulationGuides, setSimulationGuides] = useState<Record<string, ModelSimulationGuide>>({});
+  const [isModuleEditorOpen, setIsModuleEditorOpen] = useState(false);
+  const [isQuizEditorOpen, setIsQuizEditorOpen] = useState(false);
+  const [isGuideEditorOpen, setIsGuideEditorOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<LearningModule | null>(null);
+  const [editingQuiz, setEditingQuiz] = useState<{ quiz: Quiz | null, forModule: LearningModule }>({ quiz: null, forModule: null! });
+  const [editingGuide, setEditingGuide] = useState<{ guide: ModelSimulationGuide | null, forModule: LearningModule }>({ guide: null, forModule: null! });
+
   
   // Government Official Widgets State
   const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
   const [historicalDisasters, setHistoricalDisasters] = useState<HistoricalDisaster[]>([]);
   const [storedFloorplans, setStoredFloorplans] = useState<StoredFloorplan[]>([]);
   const [aiNotes, setAiNotes] = useState<AINote[]>([]);
+  const [latestNews, setLatestNews] = useState<NewsArticle[]>([]);
+  const [previousNews, setPreviousNews] = useState<NewsArticle[]>([]);
 
   const isAuthenticated = !!currentUser;
 
@@ -88,6 +107,7 @@ const App: React.FC = () => {
   const [isAlertsBannerVisible, setIsAlertsBannerVisible] = useState(true);
 
   // Derived state for the current student's progress
+  const studentProgress = currentUser ? allProgressData[currentUser.id] : undefined;
   const quizScores = studentProgress?.quizScores ?? {};
   const labScores = studentProgress?.labScores ?? {};
 
@@ -113,14 +133,155 @@ const App: React.FC = () => {
   const [showOfflineToast, setShowOfflineToast] = useState(false);
   const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Hooks
   const { translate } = useTranslate();
+  
+  // Network Status Listener
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            const pendingCallJSON = localStorage.getItem('pendingDistressCall');
+            if (pendingCallJSON) {
+                console.log("Connection restored. Sending pending distress call:", JSON.parse(pendingCallJSON));
+                // In a real app, you would actually send the data to the server here.
+                localStorage.removeItem('pendingDistressCall');
+                alert(translate('Your saved distress call has been sent now that you are back online.'));
+            }
+        };
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [translate]);
+
+  // Supabase Auth Listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        const { user } = session;
+        const userExistsInState = allUsers.some(u => u.id === user.id);
+        
+        // Construct the user profile from Supabase data
+        const userProfile: User = {
+          id: user.id,
+          name: user.user_metadata.fullName,
+          email: user.email,
+          role: user.user_metadata.role,
+          institutionName: user.user_metadata.institutionName,
+          class: user.user_metadata.class,
+          avatarUrl: user.user_metadata.avatar_url || `https://picsum.photos/seed/${user.user_metadata.fullName}/100/100`,
+          avatarStyle: 'default',
+          homeAddress: '',
+          institutionAddress: '',
+          institutionPhone: '',
+        };
+        
+        setCurrentUser(userProfile);
+        setAvatarStyle(userProfile.avatarStyle || 'default');
+
+        // If this is a new sign-up, add the user to our local state management
+        if (!userExistsInState) {
+          setAllUsers(prev => [...prev, userProfile]);
+          setAllProgressData(prev => ({
+            ...prev,
+            [userProfile.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
+          }));
+        }
+
+      } else {
+        // User is logged out
+        setCurrentUser(null);
+        setSelectedModule(null);
+        setSelectedQuiz(null);
+        setLastQuizResult(null);
+        setCurrentPage('dashboard');
+        setDashboardView('dashboard');
+        sessionStorage.removeItem('lastQuizResult'); // Keep some session data if needed, but clear user-specific
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [allUsers]); 
+  
+  // Automatic Time Tracking for Student/User Progress
+  useEffect(() => {
+    let interval: number | undefined;
+
+    const shouldTrackTime = currentUser && 
+                            (currentUser.role === UserRole.STUDENT || currentUser.role === UserRole.USER) &&
+                            ((currentPage === 'dashboard' && (dashboardView === 'module' || dashboardView === 'quiz')) ||
+                             (currentPage === 'lab' && labView === 'simulation'));
+
+    if (shouldTrackTime) {
+      interval = window.setInterval(() => {
+        setAllProgressData(prev => {
+            if (!currentUser) return prev;
+            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
+            const newTimeSpent = currentProgress.timeSpent + (1 / 3600); // Add 1 second in hours
+            return {
+                ...prev,
+                [currentUser.id]: {
+                    ...currentProgress,
+                    timeSpent: newTimeSpent
+                }
+            };
+        });
+      }, 1000); // Update every second
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [currentUser, currentPage, dashboardView, labView]);
 
   // --- STATE PERSISTENCE & INITIALIZATION ---
   // Load state from storage on initial mount
   useEffect(() => {
     try {
+      // Content Management Data from localStorage
+      const storedModulesJSON = localStorage.getItem('learningModules');
+      setModules(storedModulesJSON ? JSON.parse(storedModulesJSON) : INITIAL_MODULES);
+
+      const storedQuizzesJSON = localStorage.getItem('learningQuizzes');
+      setQuizzes(storedQuizzesJSON ? JSON.parse(storedQuizzesJSON) : INITIAL_QUIZZES);
+      
+      const storedGuidesJSON = localStorage.getItem('simulationGuides');
+      setSimulationGuides(storedGuidesJSON ? JSON.parse(storedGuidesJSON) : {});
+      
+      const storedLatestNews = localStorage.getItem('latestNews');
+      const storedPreviousNews = localStorage.getItem('previousNews');
+
+      if (storedLatestNews && storedPreviousNews) {
+          setLatestNews(JSON.parse(storedLatestNews));
+          setPreviousNews(JSON.parse(storedPreviousNews));
+      } else {
+          // Initial data seed for news
+          const seedNews = async () => {
+              try {
+                  const [latest, previous] = await Promise.all([
+                      fetchNews('latest'),
+                      fetchNews('previous')
+                  ]);
+                  const latestWithIds = latest.map((a, i) => ({ ...a, id: `latest-seed-${Date.now()}-${i}`, type: 'latest' as const }));
+                  const previousWithIds = previous.map((a, i) => ({ ...a, id: `previous-seed-${Date.now()}-${i}`, type: 'previous' as const }));
+                  setLatestNews(latestWithIds);
+                  setPreviousNews(previousWithIds);
+              } catch (err) {
+                  console.error("Failed to seed news data:", err);
+              }
+          };
+          seedNews();
+      }
+
       // Persistent data from localStorage
       const storedUsersJSON = localStorage.getItem('allUsers');
       const storedUsers = storedUsersJSON ? JSON.parse(storedUsersJSON) : [];
@@ -129,6 +290,10 @@ const App: React.FC = () => {
       const storedProgressJSON = localStorage.getItem('allProgressData');
       const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
       setAllProgressData(storedProgress);
+
+      const storedCertStatusJSON = localStorage.getItem('certificationStatus');
+      const storedCertStatus = storedCertStatusJSON ? JSON.parse(storedCertStatusJSON) : {};
+      setCertificationStatus(storedCertStatus);
       
       const storedPlansJSON = localStorage.getItem('storedFloorplans');
       const storedPlans = storedPlansJSON ? JSON.parse(storedPlansJSON) : [];
@@ -138,39 +303,26 @@ const App: React.FC = () => {
       const storedAiNotes = storedAiNotesJSON ? JSON.parse(storedAiNotesJSON) : [];
       setAiNotes(storedAiNotes);
 
-      // Session data from sessionStorage
-      const storedUserJSON = sessionStorage.getItem('currentUser');
-      if (storedUserJSON) {
-        const user: User = JSON.parse(storedUserJSON);
-        
-        setCurrentUser(user);
-        setAvatarStyle(user.avatarStyle || 'default');
-        if (user.role === UserRole.STUDENT) {
-            setStudentProgress(storedProgress[user.id] || { quizScores: {}, labScores: {}, timeSpent: 0 });
-        } else {
-            setStudentProgress(undefined);
-        }
+      // Restore non-user navigation and content state from session
+      const storedPage = sessionStorage.getItem('currentPage');
+      if (storedPage) setCurrentPage(JSON.parse(storedPage));
+      
+      const storedDashboardView = sessionStorage.getItem('dashboardView');
+      if (storedDashboardView) setDashboardView(JSON.parse(storedDashboardView));
 
-        // Restore navigation and content state
-        const storedPage = sessionStorage.getItem('currentPage');
-        if (storedPage) setCurrentPage(JSON.parse(storedPage));
-        
-        const storedDashboardView = sessionStorage.getItem('dashboardView');
-        if (storedDashboardView) setDashboardView(JSON.parse(storedDashboardView));
+      const storedLabView = sessionStorage.getItem('labView');
+      if (storedLabView) setLabView(JSON.parse(storedLabView));
+      
+      // Load module & quiz from localStorage for persistence
+      const storedSelectedModule = localStorage.getItem('selectedModule');
+      if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
+      
+      const storedSelectedQuiz = localStorage.getItem('selectedQuiz');
+      if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
 
-        const storedLabView = sessionStorage.getItem('labView');
-        if (storedLabView) setLabView(JSON.parse(storedLabView));
-        
-        // Load module & quiz from localStorage for persistence
-        const storedSelectedModule = localStorage.getItem('selectedModule');
-        if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
-        
-        const storedSelectedQuiz = localStorage.getItem('selectedQuiz');
-        if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
-
-        const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
-        if (storedLastQuizResult) setLastQuizResult(JSON.parse(storedLastQuizResult));
-      }
+      const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
+      if (storedLastQuizResult) setLastQuizResult(JSON.parse(storedLastQuizResult));
+      
     } catch (error) {
       console.error("Failed to load state from storage:", error);
       localStorage.clear();
@@ -179,6 +331,12 @@ const App: React.FC = () => {
   }, []); // Empty dependency array means this runs only once
 
   // Save persistent data to localStorage when it changes
+  useEffect(() => { localStorage.setItem('learningModules', JSON.stringify(modules)); }, [modules]);
+  useEffect(() => { localStorage.setItem('learningQuizzes', JSON.stringify(quizzes)); }, [quizzes]);
+  useEffect(() => { localStorage.setItem('simulationGuides', JSON.stringify(simulationGuides)); }, [simulationGuides]);
+  useEffect(() => { localStorage.setItem('latestNews', JSON.stringify(latestNews)); }, [latestNews]);
+  useEffect(() => { localStorage.setItem('previousNews', JSON.stringify(previousNews)); }, [previousNews]);
+
   useEffect(() => {
     if (allUsers.length > 0) {
         localStorage.setItem('allUsers', JSON.stringify(allUsers));
@@ -190,6 +348,12 @@ const App: React.FC = () => {
         localStorage.setItem('allProgressData', JSON.stringify(allProgressData));
     }
   }, [allProgressData]);
+
+  useEffect(() => {
+    if (Object.keys(certificationStatus).length > 0) {
+        localStorage.setItem('certificationStatus', JSON.stringify(certificationStatus));
+    }
+  }, [certificationStatus]);
 
   useEffect(() => {
     if (storedFloorplans.length > 0) {
@@ -209,18 +373,15 @@ const App: React.FC = () => {
 
   // Save session data to sessionStorage when relevant state changes
   useEffect(() => {
-    if (currentUser) {
-      try {
-        sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+    try {
         sessionStorage.setItem('currentPage', JSON.stringify(currentPage));
         sessionStorage.setItem('dashboardView', JSON.stringify(dashboardView));
         sessionStorage.setItem('labView', JSON.stringify(labView));
         sessionStorage.setItem('lastQuizResult', JSON.stringify(lastQuizResult));
-      } catch (error) {
+    } catch (error) {
         console.error("Failed to save session state:", error);
-      }
     }
-  }, [currentUser, currentPage, dashboardView, labView, lastQuizResult]);
+  }, [currentPage, dashboardView, labView, lastQuizResult]);
 
   // Save persistent learning state to localStorage
   useEffect(() => {
@@ -252,45 +413,6 @@ const App: React.FC = () => {
     };
     loadHistoricalData();
   }, []);
-
-  // Handle Login
-  const handleLogin = (user: User) => {
-       const userWithDefaults: User = {
-            ...user,
-            homeAddress: user.homeAddress ?? '',
-            institutionName: user.institutionName || 'My Institution',
-            institutionAddress: user.institutionAddress ?? '',
-            institutionPhone: user.institutionPhone ?? ''
-        };
-      setCurrentUser(userWithDefaults);
-      setAvatarStyle(user.avatarStyle || 'default');
-      
-      if (user.role === UserRole.STUDENT) {
-        setStudentProgress(allProgressData[user.id] || { quizScores: {}, labScores: {}, timeSpent: 0 });
-      } else {
-        setStudentProgress(undefined);
-      }
-  };
-  
-  // Handle Sign Up
-  const handleSignUpAndLogin = (newUserData: Omit<User, 'id' | 'avatarUrl' | 'rollNumber' | 'avatarStyle' | 'homeAddress' | 'institutionAddress' | 'institutionPhone'>) => {
-    const newUser: User = {
-      ...newUserData,
-      id: `user-${Date.now()}`,
-      avatarUrl: `https://picsum.photos/seed/${newUserData.name}/100/100`,
-      avatarStyle: 'default',
-      homeAddress: '', // Start with blank home address
-      institutionAddress: '', // Start with blank institution address
-      institutionPhone: '', // Start with blank institution phone
-    };
-
-    setAllUsers(prev => [...prev, newUser]);
-    setAllProgressData(prev => ({
-        ...prev,
-        [newUser.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
-    }));
-    handleLogin(newUser); // Log in the new user immediately
-  };
 
   // Effect for Service Worker Registration and Updates
   useEffect(() => {
@@ -419,7 +541,7 @@ const App: React.FC = () => {
                 break;
             case 'final_certificate':
                 setAvatarMood('happy');
-                setAvatarMessage(translate(`Congratulations, **${currentUser.name}**! You've mastered all simulations and are officially Disaster Ready!`));
+                setAvatarMessage(translate(`Congratulations, **${currentUser.name}**! You've mastered all simulations and are officially Surksha!`));
                 break;
             case 'solutions':
                 setAvatarMood('neutral');
@@ -486,15 +608,12 @@ const App: React.FC = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   }, []);
 
-  const handleLogout = useCallback(() => {
-    setCurrentUser(null);
-    setStudentProgress(undefined);
-    setSelectedModule(null);
-    setSelectedQuiz(null);
-    setLastQuizResult(null);
-    setCurrentPage('dashboard');
-    setDashboardView('dashboard');
-    sessionStorage.clear(); // Clear all session data on logout
+  const handleLogout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+        console.error("Error logging out:", error);
+    }
+    // The onAuthStateChange listener will handle clearing state.
   }, []);
 
 
@@ -504,16 +623,16 @@ const App: React.FC = () => {
   }, []);
 
   const handleStartQuiz = useCallback((moduleId: string) => {
-    const module = MODULES.find(m => m.id === moduleId);
+    const module = modules.find(m => m.id === moduleId);
     if (module) {
-      const quiz = QUIZZES.find(q => q.id === module.quizId);
+      const quiz = quizzes.find(q => q.id === module.quizId);
       if (quiz) {
         setSelectedModule(module);
         setSelectedQuiz(quiz);
         setDashboardView('quiz');
       }
     }
-  }, []);
+  }, [modules, quizzes]);
   
   const handleStartSimulation = useCallback((module: LearningModule) => {
       setSelectedModule(module);
@@ -522,21 +641,19 @@ const App: React.FC = () => {
 
   const handleSimulationComplete = useCallback((module: LearningModule, score: LabScore) => {
       if (currentUser) {
-        const updateUserProgress = (prev: StudentProgress | undefined): StudentProgress => {
-            const newProgress = prev || { quizScores: {}, labScores: {}, timeSpent: 0 };
+        setAllProgressData(prev => {
+            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
             return {
-                ...newProgress,
-                labScores: {
-                    ...newProgress.labScores,
-                    [module.id]: score
+                ...prev,
+                [currentUser.id]: {
+                    ...currentProgress,
+                    labScores: {
+                        ...currentProgress.labScores,
+                        [module.id]: score
+                    }
                 }
             };
-        };
-        setAllProgressData(prev => ({
-            ...prev,
-            [currentUser.id]: updateUserProgress(prev[currentUser.id])
-        }));
-        setStudentProgress(updateUserProgress);
+        });
       }
       setLabView('lab_dashboard');
   }, [currentUser]);
@@ -546,22 +663,19 @@ const App: React.FC = () => {
       const result = { quizId: selectedQuiz.id, score, totalQuestions };
       setLastQuizResult(result);
       
-      const updateUserProgress = (prev: StudentProgress | undefined): StudentProgress => {
-            const newProgress = prev || { quizScores: {}, labScores: {}, timeSpent: 0 };
-            return {
-                ...newProgress,
-                quizScores: {
-                    ...newProgress.quizScores,
-                    [selectedQuiz.id]: result
-                }
-            };
-        };
-       
-       setAllProgressData(prev => ({
-            ...prev,
-            [currentUser.id]: updateUserProgress(prev[currentUser.id])
-       }));
-       setStudentProgress(updateUserProgress);
+       setAllProgressData(prev => {
+           const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
+           return {
+               ...prev,
+               [currentUser.id]: {
+                   ...currentProgress,
+                   quizScores: {
+                       ...currentProgress.quizScores,
+                       [selectedQuiz.id]: result
+                   }
+               }
+           };
+       });
       
       const percentage = Math.round((score / totalQuestions) * 100);
       if (percentage >= 80) {
@@ -618,7 +732,7 @@ const App: React.FC = () => {
   }, []);
   
   const handleShowSolutions = useCallback(() => {
-    if (currentUser?.role === UserRole.TEACHER || currentUser?.role === UserRole.GOVERNMENT_OFFICIAL) {
+    if (currentUser?.role === UserRole.TEACHER || currentUser?.role === UserRole.GOVERNMENT_OFFICIAL || currentUser?.role === UserRole.USER) {
       setCurrentPage('lab');
       setLabView('solutions');
     }
@@ -626,15 +740,16 @@ const App: React.FC = () => {
   
   const handleViewFinalCertificate = useCallback(() => {
     const passedLabsCount = Object.values(labScores).filter(score => score.score >= 75).length;
-    const totalLabs = MODULES.length;
+    const totalLabs = modules.filter(m => m.hasLab).length;
+    const overallProgress = totalLabs > 0 ? Math.round((passedLabsCount / totalLabs) * 100) : 0;
     
-    if (passedLabsCount === totalLabs && totalLabs > 0) {
+    if (overallProgress >= 70 && totalLabs > 0) {
       setLabView('final_certificate');
     } else {
-      console.warn('Attempted to view final certificate without completing all labs.');
+      console.warn('Attempted to view final certificate without completing at least 70% of labs.');
       setLabView('lab_dashboard');
     }
-  }, [labScores]);
+  }, [labScores, modules]);
 
   const handleSaveProfile = useCallback(async (updatedUser: User) => {
     setCurrentUser(updatedUser);
@@ -681,6 +796,18 @@ const App: React.FC = () => {
     setCurrentPage('distress');
   }, []);
 
+  const handleDistressSubmit = useCallback((formData: { name: string, contact: string, location: string }): boolean => {
+    if (isOnline) {
+        console.log('Distress call submitted online:', formData);
+        // In a real app, this would send to a backend.
+        return true; // Indicates immediate submission
+    } else {
+        console.log('Offline. Saving distress call to be sent later:', formData);
+        localStorage.setItem('pendingDistressCall', JSON.stringify(formData));
+        return false; // Indicates offline save
+    }
+  }, [isOnline]);
+
   const handleFooterDashboardClick = useCallback(() => {
     setCurrentPage('dashboard');
     setDashboardView('dashboard');
@@ -693,6 +820,11 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
   
+  const handleFooterDistressClick = useCallback(() => {
+    setCurrentPage('distress');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const handleOpenChatbot = useCallback(() => setIsChatbotOpen(true), []);
   const handleCloseChatbot = useCallback(() => setIsChatbotOpen(false), []);
 
@@ -732,6 +864,10 @@ const App: React.FC = () => {
     }
   };
 
+  const handleToggleCertification = useCallback((studentId: string) => {
+    setCertificationStatus(prev => ({ ...prev, [studentId]: !prev[studentId] }));
+  }, []);
+
   // --- Resource Management Handlers ---
   const handleAddResource = useCallback((resourceData: Omit<Resource, 'id' | 'lastUpdated'>) => {
     const newResource: Resource = {
@@ -770,6 +906,29 @@ const App: React.FC = () => {
         setHistoricalDisasters(prev => prev.filter(d => d.id !== disasterId));
     }
   };
+
+  // --- News Management Handlers ---
+  const handleSaveNewsArticle = useCallback((articleData: NewsArticle) => {
+    if (articleData.id) { // Update existing article
+        setLatestNews(prev => prev.map(a => a.id === articleData.id ? articleData : a));
+        setPreviousNews(prev => prev.map(a => a.id === articleData.id ? articleData : a));
+    } else { // Add new article
+        const newArticle = { ...articleData, id: `user-news-${Date.now()}` };
+        if (newArticle.type === 'latest') {
+            setLatestNews(prev => [newArticle, ...prev]);
+        } else {
+            setPreviousNews(prev => [newArticle, ...prev]);
+        }
+    }
+  }, []);
+
+  const handleDeleteNewsArticle = useCallback((articleId: string) => {
+    if (window.confirm(translate('Are you sure you want to delete this news article?'))) {
+        setLatestNews(prev => prev.filter(a => a.id !== articleId));
+        setPreviousNews(prev => prev.filter(a => a.id !== articleId));
+    }
+  }, [translate]);
+
 
   // --- Floor Plan Handlers ---
     const handleAddFloorplan = useCallback((plan: Omit<StoredFloorplan, 'id' | 'ownerId'>) => {
@@ -841,6 +1000,82 @@ const App: React.FC = () => {
     sessionStorage.setItem('alertsDismissed', 'true');
   };
 
+  // --- CMS Handlers ---
+  const handleSaveModule = (moduleData: Omit<LearningModule, 'id' | 'quizId' | 'hasLab' | 'progress'> & { id?: string }) => {
+    if (moduleData.id) { // Editing existing module
+      setModules(prev => prev.map(m => m.id === moduleData.id ? { ...m, ...moduleData } : m));
+    } else { // Creating new module
+      const newModule: LearningModule = {
+        ...moduleData,
+        id: `mod-${Date.now()}`,
+        quizId: null,
+        hasLab: false,
+      };
+      setModules(prev => [newModule, ...prev]);
+    }
+    setIsModuleEditorOpen(false);
+  };
+  
+  const handleDeleteModule = (moduleId: string) => {
+    if (window.confirm(translate('Are you sure you want to delete this entire module? This action cannot be undone.'))) {
+      setModules(prev => prev.filter(m => m.id !== moduleId));
+      setQuizzes(prev => prev.filter(q => q.moduleId !== moduleId));
+    }
+  };
+
+  const handleSaveQuiz = (quizData: Omit<Quiz, 'id' | 'moduleId'> & { id?: string }, forModuleId: string) => {
+    if (quizData.id) { // Editing existing quiz
+      setQuizzes(prev => prev.map(q => q.id === quizData.id ? { ...q, ...quizData } : q));
+    } else { // Creating new quiz for a module
+      const newQuiz: Quiz = {
+        ...quizData,
+        id: `quiz-${Date.now()}`,
+        moduleId: forModuleId,
+      };
+      setQuizzes(prev => [...prev, newQuiz]);
+      setModules(prev => prev.map(m => m.id === forModuleId ? { ...m, quizId: newQuiz.id, hasLab: true } : m));
+    }
+    setIsQuizEditorOpen(false);
+  };
+  
+  const handleSaveSimulationGuide = (guideData: ModelSimulationGuide) => {
+    setSimulationGuides(prev => ({ ...prev, [guideData.moduleId]: guideData }));
+    setIsGuideEditorOpen(false);
+  };
+  
+  const handleDisableLab = (moduleId: string) => {
+    if (window.confirm(translate('Are you sure you want to disable the lab for this module? The associated quiz and guide will be removed.'))) {
+      const moduleToUpdate = modules.find(m => m.id === moduleId);
+      if (moduleToUpdate?.quizId) {
+        setQuizzes(prev => prev.filter(q => q.id !== moduleToUpdate.quizId));
+      }
+      setSimulationGuides(prev => {
+        const newGuides = { ...prev };
+        delete newGuides[moduleId];
+        return newGuides;
+      });
+      setModules(prev => prev.map(m => m.id === moduleId ? { ...m, quizId: null, hasLab: false } : m));
+    }
+  };
+
+  const handleOpenModuleEditor = (module: LearningModule | null) => {
+    setEditingModule(module);
+    setIsModuleEditorOpen(true);
+  };
+
+  const handleOpenQuizEditor = (forModule: LearningModule) => {
+    const quizToEdit = quizzes.find(q => q.id === forModule.quizId);
+    setEditingQuiz({ quiz: quizToEdit || null, forModule });
+    setIsQuizEditorOpen(true);
+  };
+  
+  const handleOpenGuideEditor = (forModule: LearningModule) => {
+    const guideToEdit = simulationGuides[forModule.id] || null;
+    setEditingGuide({ guide: guideToEdit, forModule });
+    setIsGuideEditorOpen(true);
+  };
+
+
   const profileBackText = preProfileLocation?.page === 'lab' ? translate('Back to Lab') 
     : preProfileLocation?.page === 'progress' ? translate('Back to Progress Tracker')
     : preProfileLocation?.page === 'meteo' ? translate('Back to Meteorology')
@@ -855,7 +1090,7 @@ const App: React.FC = () => {
         case 'dashboard':
             switch (dashboardView) {
                 case 'module':
-                    return selectedModule && <ModuleViewer module={selectedModule} onStartQuiz={handleStartQuiz} onBack={handleReturnToDashboard} />;
+                    return selectedModule && <ModuleViewer module={selectedModule} onStartQuiz={handleStartQuiz} onBack={handleReturnToDashboard} isOnline={isOnline} onEdit={() => handleOpenModuleEditor(selectedModule)} currentUser={currentUser} />;
                 case 'quiz':
                     return selectedQuiz && selectedModule && <QuizView quiz={selectedQuiz} moduleTitle={selectedModule.title} onComplete={handleQuizComplete} onBack={handleBackToModule} />;
                 case 'result':
@@ -863,10 +1098,14 @@ const App: React.FC = () => {
                 case 'profile':
                     return currentUser && <Profile user={currentUser} onBack={handleReturnFromProfile} onSave={handleSaveProfile} backButtonText={profileBackText} />;
                 default:
-                    const modulesWithProgress = MODULES.map(m => ({
-                        ...m,
-                        progress: studentProgress?.quizScores[m.quizId] ? 100 : 0
-                    }));
+                    const modulesWithProgress = modules.map(m => {
+                        const quizDone = studentProgress?.quizScores[m.quizId || ''];
+                        const labDone = studentProgress?.labScores[m.id];
+                        let progress = 0;
+                        if (quizDone) progress += 50;
+                        if (labDone) progress += 50;
+                        return { ...m, progress };
+                    });
                     return <Dashboard 
                                 user={currentUser} 
                                 theme={theme}
@@ -874,6 +1113,7 @@ const App: React.FC = () => {
                                 onSelectModule={handleSelectModule} 
                                 onStartQuiz={handleStartQuiz} 
                                 quizScores={quizScores}
+                                labScores={labScores}
                                 resources={resources}
                                 historicalDisasters={historicalDisasters}
                                 onAddResource={handleAddResource}
@@ -882,6 +1122,9 @@ const App: React.FC = () => {
                                 onAddDisaster={handleAddDisaster}
                                 onUpdateDisaster={handleUpdateDisaster}
                                 onDeleteDisaster={handleDeleteDisaster}
+                                onAddModule={() => handleOpenModuleEditor(null)}
+                                onEditModule={handleOpenModuleEditor}
+                                onDeleteModule={handleDeleteModule}
                             />;
             }
         case 'lab':
@@ -891,12 +1134,21 @@ const App: React.FC = () => {
                 case 'final_certificate':
                     return currentUser && <Certificate user={currentUser} onBack={handleBackToLabDashboard} />;
                 case 'solutions':
-                     return <SolutionsView modules={MODULES} quizzes={QUIZZES} allProgressData={allProgressData} onBack={handleBackToLabDashboard} />;
+                     return <SolutionsView 
+                                currentUser={currentUser}
+                                modules={modules} 
+                                quizzes={quizzes} 
+                                simulationGuides={simulationGuides}
+                                onBack={handleBackToLabDashboard}
+                                onOpenQuizEditor={handleOpenQuizEditor}
+                                onOpenGuideEditor={handleOpenGuideEditor}
+                                onDisableLab={handleDisableLab}
+                            />;
                 default:
-                    return currentUser && <LabDashboard user={currentUser} modules={MODULES} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} />;
+                    return currentUser && <LabDashboard user={currentUser} modules={modules} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} onOpenQuizEditor={handleOpenQuizEditor} onDisableLab={handleDisableLab} />;
             }
         case 'distress':
-            return currentUser && <DistressForm user={currentUser} onBack={handleReturnToDashboard} />;
+            return currentUser && <DistressForm user={currentUser} onBack={handleReturnToDashboard} onSubmit={handleDistressSubmit} isOnline={isOnline} />;
         case 'progress':
             let studentsForTracker: User[] = [];
             if (currentUser?.role === UserRole.TEACHER) {
@@ -906,19 +1158,27 @@ const App: React.FC = () => {
             }
             return currentUser && <ProgressTracker 
                                     user={currentUser} 
-                                    modules={MODULES} 
+                                    modules={modules} 
                                     studentData={studentsForTracker} 
                                     progressData={allProgressData}
                                     onAddStudent={handleAddStudent}
                                     onUpdateStudent={handleUpdateStudent}
                                     onDeleteStudent={handleDeleteStudent}
+                                    certificationStatus={certificationStatus}
+                                    onToggleCertification={handleToggleCertification}
                                   />;
         case 'meteo':
             return currentUser && <WindyMap user={currentUser} theme={theme} />;
         case 'tectonic':
             return currentUser && <TectonicMap user={currentUser} />;
         case 'news':
-            return currentUser && <News currentUser={currentUser} />;
+            return currentUser && <News 
+                                    currentUser={currentUser} 
+                                    latestNews={latestNews}
+                                    previousNews={previousNews}
+                                    onSave={handleSaveNewsArticle}
+                                    onDelete={handleDeleteNewsArticle}
+                                />;
         case 'exit_planner':
              return currentUser && <ExitPlanner 
                 currentUser={currentUser}
@@ -926,6 +1186,7 @@ const App: React.FC = () => {
                 onAddFloorplan={handleAddFloorplan}
                 onUpdateFloorplan={handleUpdateFloorplan}
                 onDeleteFloorplan={handleDeleteFloorplan}
+                isOnline={isOnline}
             />;
         case 'notebook':
             return currentUser && <AINotebook 
@@ -964,7 +1225,6 @@ const App: React.FC = () => {
               <>
                <Header
                   user={currentUser}
-                  // Fix: Pass the required 'institution' prop, constructed from the currentUser object.
                   institution={{
                     id: `inst-${currentUser.id}`,
                     name: currentUser.institutionName,
@@ -990,18 +1250,19 @@ const App: React.FC = () => {
                     <AlertsBanner
                         location={alertLocation}
                         onClose={handleCloseAlertsBanner}
+                        isOnline={isOnline}
                     />
                 </div>
               )}
               {isAuthenticated ? renderContent() : (
-                <Dashboard theme={theme} user={null} modules={MODULES.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} resources={[]} historicalDisasters={[]} onAddResource={()=>{}} onUpdateResource={()=>{}} onDeleteResource={()=>{}} onAddDisaster={()=>{}} onUpdateDisaster={()=>{}} onDeleteDisaster={()=>{}} />
+                <Dashboard theme={theme} user={null} modules={modules.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} labScores={{}} resources={[]} historicalDisasters={[]} onAddResource={()=>{}} onUpdateResource={()=>{}} onDeleteResource={()=>{}} onAddDisaster={()=>{}} onUpdateDisaster={()=>{}} onDeleteDisaster={()=>{}} onAddModule={()=>{}} onEditModule={()=>{}} onDeleteModule={()=>{}} />
               )}
           </main>
           <AboutUs />
           <Footer 
               onDashboardClick={isAuthenticated ? handleFooterDashboardClick : () => {}}
               onLabClick={isAuthenticated ? handleFooterLabClick : () => {}}
-              onOpenPanicModal={isAuthenticated ? handleOpenPanicModal : () => {}}
+              onDistressClick={isAuthenticated ? handleFooterDistressClick : () => {}}
           />
         </div>
       </div>
@@ -1014,6 +1275,7 @@ const App: React.FC = () => {
             isOpen={isAvatarVisible}
             onClose={() => setIsAvatarVisible(false)}
             avatarStyle={avatarStyle}
+            onClick={handleOpenChatbot}
           />
           <ChatbotButton onClick={handleOpenChatbot} />
           <PanicButton onClick={handleOpenPanicModal} />
@@ -1029,20 +1291,19 @@ const App: React.FC = () => {
         onOpenDistressForm={handleOpenDistressForm}
         locationError={locationError}
         hasLocation={!!location}
+        isOnline={isOnline}
       />
       <Chatbot 
         isOpen={isChatbotOpen} 
         onClose={handleCloseChatbot} 
         currentPage={currentPage} 
         avatarStyle={avatarStyle}
+        currentUser={currentUser}
+        isOnline={isOnline}
       />
       
       {!isAuthenticated && (
-        <Auth 
-          allUsers={allUsers}
-          onLogin={handleLogin} 
-          onSignUp={handleSignUpAndLogin}
-        />
+        <Auth />
       )}
 
       {showOfflineToast && (
@@ -1050,6 +1311,35 @@ const App: React.FC = () => {
       )}
       {showUpdateToast && (
           <OfflineStatusToast type="updateAvailable" onClose={() => setShowUpdateToast(false)} onRefresh={handleUpdate} />
+      )}
+
+      {isModuleEditorOpen && (
+        <ModuleEditModal
+            isOpen={isModuleEditorOpen}
+            onClose={() => setIsModuleEditorOpen(false)}
+            onSave={handleSaveModule}
+            existingModule={editingModule}
+        />
+      )}
+
+      {isQuizEditorOpen && (
+        <QuizEditModal
+            isOpen={isQuizEditorOpen}
+            onClose={() => setIsQuizEditorOpen(false)}
+            onSave={(quiz) => handleSaveQuiz(quiz, editingQuiz.forModule.id)}
+            existingQuiz={editingQuiz.quiz}
+            forModule={editingQuiz.forModule}
+        />
+      )}
+      
+      {isGuideEditorOpen && (
+        <SimulationGuideEditModal
+            isOpen={isGuideEditorOpen}
+            onClose={() => setIsGuideEditorOpen(false)}
+            onSave={handleSaveSimulationGuide}
+            existingGuide={editingGuide.guide}
+            forModule={editingGuide.forModule}
+        />
       )}
     </div>
   );

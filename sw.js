@@ -1,10 +1,14 @@
-const CACHE_NAME = 'edusafe-cache-v1';
+const CACHE_NAME = 'alertiq-cache-v1';
 
-// List all essential assets for offline access, including all module imagery.
+// List all essential assets for offline access, including all module imagery and map data.
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/index.tsx',
+  // Static data for maps
+  'data/tectonic-plates.json',
+  'data/ring-of-fire.json',
+  'data/volcanoes.json',
   // Module Thumbnails & Content Images
   'https://wallpaperaccess.com/full/2142495.jpg',
   'https://www.washingtonpost.com/resizer/g6qrtMHTZ6exloEIC7vT0fvEry8=/arc-anglerfish-washpost-prod-washpost/public/BX2IH7HQOYI6ZLAWR67XDFGNPA.jpg',

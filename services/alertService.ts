@@ -1,6 +1,7 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import type { Alert } from '../types';
 import { handleApiError } from './apiErrorHandler';
+import { generateContent } from './aiService';
 
 // Simple in-memory cache for the session to avoid repeated API calls for the same location
 const alertCache = new Map<string, Alert[]>();
@@ -36,8 +37,6 @@ export async function fetchRealTimeAlerts(location: string): Promise<Alert[]> {
   }
   // --- END OF GUARD FOR MISSING API KEY ---
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   const prompt = `Act as a national disaster alert system. Based on the current real-world date and the provided location, generate a realistic, short array of 0 to 3 disaster alerts.
   The location is: "${location}".
   
@@ -51,7 +50,7 @@ export async function fetchRealTimeAlerts(location: string): Promise<Alert[]> {
   - The response MUST be a valid JSON array of alert objects, with no extra text, explanations, or markdown.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -99,9 +98,9 @@ export async function fetchRealTimeAlerts(location: string): Promise<Alert[]> {
     return validAlerts;
 
   } catch (error) {
-    const errorMessage = handleApiError(error);
-    console.error('Alert Generation API error:', errorMessage);
+    // The error is already formatted by the aiService wrapper
+    console.error('Alert Generation API error:', error);
     // Re-throw the error to be handled by the calling component.
-    throw new Error(errorMessage);
+    throw error;
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslate } from '../contexts/TranslationContext';
 
 // Define the interface for the SpeechRecognition API
 interface SpeechRecognition extends EventTarget {
@@ -28,6 +29,7 @@ export const useSpeechRecognition = (onTranscript: (transcript: string) => void)
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const { language, translate } = useTranslate(); // Get current language and translate function
 
   useEffect(() => {
     if (!SpeechRecognitionAPI) {
@@ -36,9 +38,9 @@ export const useSpeechRecognition = (onTranscript: (transcript: string) => void)
     }
 
     const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = true; // Keep listening for commands until stopped.
-    recognition.interimResults = false; // Only process final results for accuracy.
-    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = language; // Use the globally selected language
 
     recognitionRef.current = recognition;
 
@@ -59,19 +61,19 @@ export const useSpeechRecognition = (onTranscript: (transcript: string) => void)
       switch (event.error) {
         case 'not-allowed':
         case 'service-not-allowed':
-          errorMessage = "Microphone access denied. Please enable it in your browser settings.";
+          errorMessage = translate("Microphone access denied. Please enable it in your browser settings.");
           break;
         case 'no-speech':
-          errorMessage = "I didn't hear that. Please try again.";
+          errorMessage = translate("I didn't hear that. Please try again.");
           break;
         case 'audio-capture':
-          errorMessage = "Failed to capture audio. Please check your microphone connection.";
+          errorMessage = translate("Failed to capture audio. Please check your microphone connection.");
           break;
         case 'network':
-          errorMessage = "A network error occurred. Please check your connection and try again.";
+          errorMessage = translate("A network error occurred. Please check your connection and try again.");
           break;
         default:
-          errorMessage = `An unexpected error occurred: ${event.error}`;
+          errorMessage = `${translate("An unexpected error occurred:")} ${event.error}`;
       }
       setError(errorMessage);
       console.error('Speech recognition error:', event.error);
@@ -83,29 +85,34 @@ export const useSpeechRecognition = (onTranscript: (transcript: string) => void)
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      if (recognitionRef.current) {
+          setIsListening(false);
+      }
     };
-
+    
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.abort();
+        recognitionRef.current = null;
       }
     };
-  }, [onTranscript]);
+  }, [onTranscript, language, translate]);
 
   const toggleListening = useCallback(() => {
-    if (!recognitionRef.current) return;
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
 
     if (isListening) {
-      recognitionRef.current.stop();
+      recognition.stop();
     } else {
        try {
-        recognitionRef.current.start();
+        recognition.start();
       } catch(e) {
           console.error("Speech recognition could not be started: ", e);
+          setError(translate("Could not start listening. Please try again in a moment."));
       }
     }
-  }, [isListening]);
+  }, [isListening, translate]);
 
   return {
     isListening,

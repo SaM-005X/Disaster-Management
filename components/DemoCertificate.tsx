@@ -19,7 +19,7 @@ const DemoCertificate: React.FC<DemoCertificateProps> = ({ user }) => {
             <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
                 <ShieldCheckIcon className="h-16 w-16 text-gray-500 mx-auto" />
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-white mt-4">{translate(user.institutionName)}</h1>
-                <p className="text-lg text-gray-500 dark:text-gray-400">{translate('EduSafe Platform')}</p>
+                <p className="text-lg text-gray-500 dark:text-gray-400">{translate('AlertIQ Platform')}</p>
             </div>
             <div className="my-10 text-center">
                 <p className="text-xl text-gray-600 dark:text-gray-300 uppercase tracking-widest">{translate('Certificate of Preparedness')}</p>
@@ -37,7 +37,7 @@ const DemoCertificate: React.FC<DemoCertificateProps> = ({ user }) => {
                 </div>
                  <div>
                     <p className="font-bold text-gray-700 dark:text-gray-200 mt-4 sm:mt-0 text-center">{translate('Authorized by')}</p>
-                    <p className="text-gray-600 dark:text-gray-400 text-center italic">{translate('EduSafe Coordination Team')}</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-center italic">{translate('AlertIQ Coordination Team')}</p>
                 </div>
             </div>
         </div>
@@ -46,7 +46,7 @@ const DemoCertificate: React.FC<DemoCertificateProps> = ({ user }) => {
         <div className="absolute inset-0 bg-gray-500 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-60 flex flex-col items-center justify-center text-center p-4 backdrop-blur-sm">
             <LockIcon className="h-20 w-20 text-white" />
             <h2 className="text-3xl font-bold text-white mt-4">{translate('Certificate Locked')}</h2>
-            <p className="text-lg text-white mt-2 max-w-md">{translate('Complete all lab simulations with a passing score of 75% or higher to unlock and earn your official "Disaster Ready" certificate.')}</p>
+            <p className="text-lg text-white mt-2 max-w-md">{translate('Complete at least 70% of lab simulations with a passing score to unlock and earn your official "Surksha" certificate.')}</p>
         </div>
 
         <style>
