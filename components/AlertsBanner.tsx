@@ -51,6 +51,7 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
         setError(null);
         const fetchedAlerts = await fetchRealTimeAlerts(location);
         setAlerts(fetchedAlerts);
+        setCurrentAlertIndex(0); // Reset index on new data to prevent race conditions
       } catch (err) {
         console.error("Failed to fetch alerts:", err);
         if (err instanceof Error) {
@@ -58,6 +59,8 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
         } else {
             setError(translate("An unknown error occurred while fetching alerts."));
         }
+        setAlerts([]); // Clear alerts on error
+        setCurrentAlertIndex(0);
       } finally {
         setIsLoading(false);
       }
@@ -106,8 +109,8 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose }) => {
     );
   }
 
-  if (alerts.length === 0) {
-    return null; // No alerts to display
+  if (alerts.length === 0 || currentAlertIndex >= alerts.length) {
+    return null; // No alerts to display or index is out of bounds
   }
 
   const currentAlert = alerts[currentAlertIndex];

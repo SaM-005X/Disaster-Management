@@ -178,3 +178,24 @@ export interface HistoricalDisaster {
   economicImpactUSD: string; // e.g., "1.5 Billion"
   summary: string;
 }
+
+export interface StoredFloorplan {
+  id: string;
+  name: string;
+  imageDataUrl: string; // Storing as Data URL in localStorage is more persistent than blob URLs
+  ownerId?: string; // For local plans, the user's ID
+  isGlobal: boolean;
+  width: number;
+  height: number;
+}
+
+export interface AINote {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  isTask: boolean;
+  isCompleted: boolean;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+}

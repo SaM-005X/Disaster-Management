@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { MODULES, QUIZZES } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus } from './types';
+import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -30,8 +30,10 @@ import { useTranslate } from './contexts/TranslationContext';
 import OfflineStatusToast from './components/OfflineStatusToast';
 import News from './components/News';
 import { fetchHistoricalDisasters } from './services/historicalDisasterService';
+import ExitPlanner from './components/ExitPlanner';
+import AINotebook from './components/AINotebook';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
 export type LabView = 'lab_dashboard' | 'simulation' | 'final_certificate' | 'solutions';
 export type Theme = 'light' | 'dark';
@@ -55,6 +57,8 @@ const App: React.FC = () => {
   // Government Official Widgets State
   const [resources, setResources] = useState<Resource[]>(MOCK_RESOURCES);
   const [historicalDisasters, setHistoricalDisasters] = useState<HistoricalDisaster[]>([]);
+  const [storedFloorplans, setStoredFloorplans] = useState<StoredFloorplan[]>([]);
+  const [aiNotes, setAiNotes] = useState<AINote[]>([]);
 
   const isAuthenticated = !!currentUser;
 
@@ -113,6 +117,14 @@ const App: React.FC = () => {
       const storedProgressJSON = localStorage.getItem('allProgressData');
       const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
       setAllProgressData(storedProgress);
+      
+      const storedPlansJSON = localStorage.getItem('storedFloorplans');
+      const storedPlans = storedPlansJSON ? JSON.parse(storedPlansJSON) : [];
+      setStoredFloorplans(storedPlans);
+      
+      const storedAiNotesJSON = localStorage.getItem('aiNotes');
+      const storedAiNotes = storedAiNotesJSON ? JSON.parse(storedAiNotesJSON) : [];
+      setAiNotes(storedAiNotes);
 
       // Session data from sessionStorage
       const storedUserJSON = sessionStorage.getItem('currentUser');
@@ -137,10 +149,11 @@ const App: React.FC = () => {
         const storedLabView = sessionStorage.getItem('labView');
         if (storedLabView) setLabView(JSON.parse(storedLabView));
         
-        const storedSelectedModule = sessionStorage.getItem('selectedModule');
+        // Load module & quiz from localStorage for persistence
+        const storedSelectedModule = localStorage.getItem('selectedModule');
         if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
         
-        const storedSelectedQuiz = sessionStorage.getItem('selectedQuiz');
+        const storedSelectedQuiz = localStorage.getItem('selectedQuiz');
         if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
 
         const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
@@ -166,6 +179,22 @@ const App: React.FC = () => {
     }
   }, [allProgressData]);
 
+  useEffect(() => {
+    if (storedFloorplans.length > 0) {
+        localStorage.setItem('storedFloorplans', JSON.stringify(storedFloorplans));
+    } else {
+        localStorage.removeItem('storedFloorplans');
+    }
+  }, [storedFloorplans]);
+  
+  useEffect(() => {
+    if (aiNotes.length > 0) {
+        localStorage.setItem('aiNotes', JSON.stringify(aiNotes));
+    } else {
+        localStorage.removeItem('aiNotes');
+    }
+  }, [aiNotes]);
+
   // Save session data to sessionStorage when relevant state changes
   useEffect(() => {
     if (currentUser) {
@@ -174,14 +203,30 @@ const App: React.FC = () => {
         sessionStorage.setItem('currentPage', JSON.stringify(currentPage));
         sessionStorage.setItem('dashboardView', JSON.stringify(dashboardView));
         sessionStorage.setItem('labView', JSON.stringify(labView));
-        sessionStorage.setItem('selectedModule', JSON.stringify(selectedModule));
-        sessionStorage.setItem('selectedQuiz', JSON.stringify(selectedQuiz));
         sessionStorage.setItem('lastQuizResult', JSON.stringify(lastQuizResult));
       } catch (error) {
         console.error("Failed to save session state:", error);
       }
     }
-  }, [currentUser, currentPage, dashboardView, labView, selectedModule, selectedQuiz, lastQuizResult]);
+  }, [currentUser, currentPage, dashboardView, labView, lastQuizResult]);
+
+  // Save persistent learning state to localStorage
+  useEffect(() => {
+    try {
+        if (selectedModule) {
+            localStorage.setItem('selectedModule', JSON.stringify(selectedModule));
+        } else {
+            localStorage.removeItem('selectedModule');
+        }
+        if (selectedQuiz) {
+            localStorage.setItem('selectedQuiz', JSON.stringify(selectedQuiz));
+        } else {
+            localStorage.removeItem('selectedQuiz');
+        }
+    } catch (error) {
+        console.error("Failed to save learning state:", error);
+    }
+  }, [selectedModule, selectedQuiz]);
 
   // Load historical disaster data once on mount
   useEffect(() => {
@@ -383,6 +428,12 @@ const App: React.FC = () => {
       } else if (currentPage === 'news') {
         setAvatarMood('neutral');
         setAvatarMessage(translate('Stay informed with the latest global disaster and weather news.'));
+      } else if (currentPage === 'exit_planner') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('Upload a floorplan to begin planning your emergency exit route.'));
+      } else if (currentPage === 'notebook') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('Welcome to your AI Notebook! Organize your thoughts, manage tasks, and let me help you with summaries or ideas.'));
       } else {
          switch (dashboardView) {
             case 'dashboard':
@@ -708,6 +759,71 @@ const App: React.FC = () => {
     }
   };
 
+  // --- Floor Plan Handlers ---
+    const handleAddFloorplan = useCallback((plan: Omit<StoredFloorplan, 'id' | 'ownerId'>) => {
+        if (!currentUser) return;
+        if (plan.isGlobal && currentUser.role !== UserRole.GOVERNMENT_OFFICIAL) {
+            console.error("Permission denied: Only officials can add global plans.");
+            return;
+        }
+
+        const newPlan: StoredFloorplan = {
+            ...plan,
+            id: `plan-${Date.now()}`,
+            ownerId: plan.isGlobal ? undefined : currentUser.id,
+        };
+        setStoredFloorplans(prev => [...prev, newPlan]);
+    }, [currentUser]);
+
+    const handleUpdateFloorplan = useCallback((planId: string, updatedData: Partial<Omit<StoredFloorplan, 'id'>>) => {
+        setStoredFloorplans(prev => prev.map(p => {
+            if (p.id === planId) {
+                if (p.isGlobal && currentUser?.role !== UserRole.GOVERNMENT_OFFICIAL) return p;
+                if (!p.isGlobal && p.ownerId !== currentUser?.id) return p;
+                return { ...p, ...updatedData };
+            }
+            return p;
+        }));
+    }, [currentUser]);
+
+    const handleDeleteFloorplan = useCallback((planId: string) => {
+        const planToDelete = storedFloorplans.find(p => p.id === planId);
+        if (!planToDelete || !currentUser) return;
+        
+        if (planToDelete.isGlobal && currentUser.role !== UserRole.GOVERNMENT_OFFICIAL) return;
+        if (!planToDelete.isGlobal && planToDelete.ownerId !== currentUser.id) return;
+        
+        if (window.confirm(translate('Are you sure you want to delete this floor plan?'))) {
+             setStoredFloorplans(prev => prev.filter(p => p.id !== planId));
+        }
+    }, [currentUser, storedFloorplans, translate]);
+    
+    // --- AI Note Handlers ---
+    const handleAddNote = useCallback((noteData: Omit<AINote, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
+        if (!currentUser) return;
+        const newNote: AINote = {
+            ...noteData,
+            id: `note-${Date.now()}`,
+            userId: currentUser.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        setAiNotes(prev => [...prev, newNote].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+    }, [currentUser]);
+
+    const handleUpdateNote = useCallback((updatedNote: AINote) => {
+        if (!currentUser) return;
+        setAiNotes(prev => prev.map(n => n.id === updatedNote.id ? { ...updatedNote, updatedAt: new Date().toISOString() } : n).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+    }, [currentUser]);
+
+    const handleDeleteNote = useCallback((noteId: string) => {
+        if (!currentUser) return;
+        if (window.confirm(translate('Are you sure you want to delete this note?'))) {
+            setAiNotes(prev => prev.filter(n => n.id !== noteId));
+        }
+    }, [currentUser, translate]);
+
+
   const handleCloseAlertsBanner = () => {
     setIsAlertsBannerVisible(false);
     sessionStorage.setItem('alertsDismissed', 'true');
@@ -718,6 +834,8 @@ const App: React.FC = () => {
     : preProfileLocation?.page === 'meteo' ? translate('Back to Meteorology')
     : preProfileLocation?.page === 'tectonic' ? translate('Back to Tectonic Map')
     : preProfileLocation?.page === 'news' ? translate('Back to News Portal')
+    : preProfileLocation?.page === 'exit_planner' ? translate('Back to Exit Planner')
+    : preProfileLocation?.page === 'notebook' ? translate('Back to AI Notebook')
     : translate('Back to Dashboard');
 
   const renderContent = () => {
@@ -761,7 +879,7 @@ const App: React.FC = () => {
                 case 'final_certificate':
                     return currentUser && <Certificate user={currentUser} onBack={handleBackToLabDashboard} />;
                 case 'solutions':
-                     return <SolutionsView modules={MODULES} quizzes={QUIZZES} onBack={handleBackToLabDashboard} />;
+                     return <SolutionsView modules={MODULES} quizzes={QUIZZES} allProgressData={allProgressData} onBack={handleBackToLabDashboard} />;
                 default:
                     return currentUser && <LabDashboard user={currentUser} modules={MODULES} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} />;
             }
@@ -789,6 +907,21 @@ const App: React.FC = () => {
             return currentUser && <TectonicMap user={currentUser} />;
         case 'news':
             return currentUser && <News currentUser={currentUser} />;
+        case 'exit_planner':
+             return currentUser && <ExitPlanner 
+                currentUser={currentUser}
+                storedFloorplans={storedFloorplans}
+                onAddFloorplan={handleAddFloorplan}
+                onUpdateFloorplan={handleUpdateFloorplan}
+                onDeleteFloorplan={handleDeleteFloorplan}
+            />;
+        case 'notebook':
+            return currentUser && <AINotebook 
+                notes={aiNotes.filter(n => n.userId === currentUser.id)}
+                onAddNote={handleAddNote}
+                onUpdateNote={handleUpdateNote}
+                onDeleteNote={handleDeleteNote}
+            />;
         default:
             return null;
     }

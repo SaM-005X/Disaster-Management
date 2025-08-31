@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import type { LearningModule, Quiz } from '../types';
+import type { LearningModule, Quiz, StudentProgress, ScenarioContent } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
@@ -11,6 +11,7 @@ import { handleApiError } from '../services/apiErrorHandler';
 interface SolutionsViewProps {
   modules: LearningModule[];
   quizzes: Quiz[];
+  allProgressData: Record<string, StudentProgress>;
   onBack: () => void;
 }
 
@@ -64,7 +65,7 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
         // Check for Ordered List
         if (lines.every(line => /^\s*\d+\.\s/.test(line))) {
             const listItems = lines.map(line => `<li>${line.replace(/^\s*\d+\.\s+/, '')}</li>`).join('');
-            return `<ol class="list-decimal list-inside space-y-1">${listItems}</ol>`;
+            return `<ol class="list-decimal list-inside space-y-1">${listItems}</ul>`;
         }
 
         // Otherwise, treat as a paragraph
@@ -81,7 +82,7 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
     return finalHtml;
 };
 
-const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack }) => {
+const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, allProgressData, onBack }) => {
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
   const [modelSimulations, setModelSimulations] = useState<Record<string, { guide?: ModelSimulationGuide; isLoading: boolean; error?: string }>>({});
   const [quizExplanations, setQuizExplanations] = useState<Record<string, { explanations: Record<string, Explanation>; isLoading: boolean; error?: string }>>({});
@@ -138,7 +139,7 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack 
     
   }, [modules, quizzes, openModuleId, modelSimulations, quizExplanations, registerTexts, translate]);
 
-  const fetchModelSimulationGuide = useCallback(async (moduleId: string) => {
+  const generateModelSimulationGuide = useCallback(async (moduleId: string) => {
     const module = modules.find(m => m.id === moduleId);
     if (!module) return;
 
@@ -150,62 +151,71 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ modules, quizzes, onBack 
         return '';
     }).join('\n');
 
-    const prompt = `You are a disaster preparedness expert creating a teacher's guide for the module titled "${module.title}".
-Generate a complete, representative 5-step simulation.
-- The first 2 steps must be "multiple-choice" scenarios.
-- The next 3 steps must be "short-answer" scenarios where the student types a response.
+    const prompt = `You are an expert in curriculum design for disaster preparedness. Your task is to generate a model simulation guide for the learning module titled "${module.title}". This guide is for teachers to understand the types of questions students might face in their AI-powered simulations.
 
-For each step, provide:
-1. The scenario text.
-2. The type ("multiple-choice" or "short-answer").
-3. For "multiple-choice", provide 3-4 choices and the correct answer.
-4. For "short-answer", provide an ideal, expert-level model answer.
+**Learning Module Content:**
+---
+${moduleContext}
+---
 
-**Important**: Format all text (scenarioText, modelAnswer, etc.) with markdown for readability. Use **bolding** for emphasis and lists for clarity.
----
-MODULE CONTENT FOR CONTEXT: ${moduleContext}
----
-Respond ONLY with a single valid JSON object using the schema provided.`;
-    
+**YOUR TASK:**
+Based on the provided Learning Module Content, create a list of 3 diverse and challenging simulation scenarios. Include a mix of multiple-choice and short-answer questions.
+
+**REQUIREMENTS:**
+- The scenarios must test critical thinking and application of the module's safety principles.
+- For multiple-choice questions, provide 3-4 plausible choices and clearly indicate the correct one.
+- For short-answer questions, provide an ideal "model answer" that demonstrates a full understanding of the concepts, formatted with markdown.
+- The entire output **MUST** be a single, valid JSON object with no other text or markdown.
+
+**JSON Schema:**
+- The root object must have a single key "scenarios", which is an array of scenario objects.
+- Each scenario object must have:
+    - "scenarioText": The descriptive text of the scenario/question.
+    - "type": Either "multiple-choice" or "short-answer".
+    - "choices": An array of strings for "multiple-choice", otherwise an empty array \`[]\`.
+    - "correctAnswer": The exact correct string from the "choices" for "multiple-choice", otherwise an empty string \`""\`.
+    - "modelAnswer": An empty string \`""\` for "multiple-choice", otherwise the detailed expert answer for a "short-answer" question.
+`;
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        scenarios: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    scenarioText: { type: Type.STRING },
-                                    type: { type: Type.STRING },
-                                    choices: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                    correctAnswer: { type: Type.STRING },
-                                    modelAnswer: { type: Type.STRING }
-                                },
-                                required: ["scenarioText", "type"]
-                            }
-                        }
-                    },
-                    required: ["scenarios"]
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              scenarios: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    scenarioText: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    choices: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correctAnswer: { type: Type.STRING },
+                    modelAnswer: { type: Type.STRING },
+                  },
+                  required: ["scenarioText", "type", "choices", "correctAnswer", "modelAnswer"]
                 }
-            }
-        });
-        
-        const guide = JSON.parse(response.text);
-        setModelSimulations(prev => ({ ...prev, [moduleId]: { guide, isLoading: false } }));
+              }
+            },
+            required: ["scenarios"]
+          }
+        }
+      });
+
+      const guide = JSON.parse(response.text.trim()) as ModelSimulationGuide;
+      setModelSimulations(prev => ({ ...prev, [moduleId]: { guide, isLoading: false } }));
 
     } catch (error) {
-        const errorMessage = handleApiError(error);
-        console.error("Failed to generate model simulation guide:", errorMessage);
-        setModelSimulations(prev => ({ ...prev, [moduleId]: { guide: { scenarios: [] }, isLoading: false, error: errorMessage } }));
+      const errorMessage = handleApiError(error);
+      console.error("Failed to generate model simulation guide:", errorMessage);
+      setModelSimulations(prev => ({ ...prev, [moduleId]: { guide: { scenarios: [] }, isLoading: false, error: errorMessage } }));
     }
   }, [modules]);
+
 
   const fetchQuizExplanations = useCallback(async (moduleId: string) => {
     const module = modules.find(m => m.id === moduleId);
@@ -287,7 +297,7 @@ ${moduleContextForAI}
 
     if (newOpenModuleId) {
         if (!modelSimulations[newOpenModuleId]) {
-            fetchModelSimulationGuide(newOpenModuleId);
+            generateModelSimulationGuide(newOpenModuleId);
         }
         if (!quizExplanations[newOpenModuleId]) {
             fetchQuizExplanations(newOpenModuleId);
@@ -404,7 +414,7 @@ ${moduleContextForAI}
                             <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse [animation-delay:-0.3s]"></span>
                             <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse [animation-delay:-0.15s]"></span>
                             <span className="h-2 w-2 bg-teal-500 rounded-full animate-pulse"></span>
-                            <span>{translate('Generating model simulation guide with AI...')}</span>
+                            <span>{translate('Generating model guide from module content...')}</span>
                         </div>
                      ) : modelSimulations[module.id]?.guide?.scenarios.length ? (
                         <div className="space-y-6">

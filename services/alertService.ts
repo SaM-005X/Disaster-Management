@@ -77,10 +77,23 @@ export async function fetchRealTimeAlerts(location: string): Promise<Alert[]> {
       jsonString = jsonMatch[0];
     }
 
-    const alerts = JSON.parse(jsonString) as Alert[];
+    const parsedData = JSON.parse(jsonString);
+
+    if (!Array.isArray(parsedData)) {
+        console.warn("API response for alerts was not an array:", parsedData);
+        alertCache.set(cacheKey, []);
+        return [];
+    }
     
-    // Validate severity and filter out any invalid ones
-    const validAlerts = alerts.filter(alert => ['Warning', 'Watch', 'Advisory'].includes(alert.severity));
+    const alerts = parsedData as Alert[];
+    
+    // Validate each alert object to ensure it has the required properties and valid severity
+    const validAlerts = alerts.filter(alert => 
+        alert && 
+        typeof alert === 'object' && 
+        typeof alert.severity === 'string' &&
+        ['Warning', 'Watch', 'Advisory'].includes(alert.severity)
+    );
 
     alertCache.set(cacheKey, validAlerts);
     return validAlerts;

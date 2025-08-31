@@ -10,6 +10,15 @@ export function handleApiError(error: unknown): string {
 
   // Handle library-specific errors that have a 'message' property
   if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+     // Check if the message is a JSON string from the Gemini API
+    try {
+      const errorJson = JSON.parse((error as any).message);
+      if (errorJson.error && errorJson.error.message) {
+        return `An API error occurred: ${errorJson.error.message}`;
+      }
+    } catch (e) {
+      // Not a JSON error, fall through to return the message directly
+    }
     return (error as any).message;
   }
   

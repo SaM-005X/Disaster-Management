@@ -13,8 +13,10 @@ import { XIcon } from './icons/XIcon';
 import { NewspaperIcon } from './icons/NewspaperIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { GlobeIcon } from './icons/GlobeIcon';
+import { ExitIcon } from './icons/ExitIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook';
 
 interface SidebarProps {
   currentPage: Page;
@@ -114,6 +116,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               label={translate('Lab / Simulation')}
               isActive={currentPage === 'lab' && labView !== 'solutions'}
               onClick={() => handleNavigation('lab')}
+            />
+          </li>
+          <li>
+            <NavLink
+              icon={<ExitIcon className="h-6 w-6" />}
+              label={translate('Exit Planner')}
+              isActive={currentPage === 'exit_planner'}
+              onClick={() => handleNavigation('exit_planner')}
+            />
+          </li>
+           <li>
+            <NavLink
+              icon={<ClipboardListIcon className="h-6 w-6" />}
+              label={translate('AI Notebook')}
+              isActive={currentPage === 'notebook'}
+              onClick={() => handleNavigation('notebook')}
             />
           </li>
           {user && user.role !== UserRole.GOVERNMENT_OFFICIAL && (
