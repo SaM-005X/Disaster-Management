@@ -6,6 +6,7 @@ import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { AwardIcon } from './icons/AwardIcon';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
+import { IndianFlagIcon } from './icons/IndianFlagIcon';
 
 interface CertificateProps {
   user: User;
@@ -37,8 +38,10 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
       { id: 'cert-achievement-title', text: achievementTitle },
       { id: 'cert-date-label', text: translate('Date of Completion') },
       { id: 'cert-date-value', text: completionDate },
+      { id: 'cert-issued-by', text: translate('Issued in collaboration with') },
+      { id: 'cert-gov-of-india', text: translate('Government of India') },
       { id: 'cert-auth-label', text: translate('Authorized by') },
-      { id: 'cert-auth-value', text: translate('EduSafe Coordination Team') },
+      { id: 'cert-auth-value', text: translate('EduSafe Platform & NDMA') },
     ];
     registerTexts(textsToRead);
   }, [user, achievementTitle, achievementReason, completionDate, registerTexts, translate]);
@@ -65,33 +68,43 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
                 <span>{translate('Print Certificate')}</span>
             </button>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-10 max-w-4xl mx-auto border-4 border-teal-500 dark:border-teal-400 certificate-bg">
-            <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
-                <ShieldCheckIcon className="h-16 w-16 text-teal-600 dark:text-teal-400 mx-auto" />
-                <h1 id="cert-inst-name" className={`text-2xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'cert-inst-name' ? 'tts-highlight' : ''}`}>{translate(user.institutionName)}</h1>
-                <p id="cert-platform-name" className={`text-lg text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'cert-platform-name' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform')}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 md:p-10 max-w-4xl mx-auto border-4 border-teal-500 dark:border-teal-400 certificate-bg relative">
+            <div className="absolute inset-0 flex items-center justify-center z-0">
+                <IndianFlagIcon className="h-64 w-64 opacity-10" />
             </div>
-            <div className="my-10 text-center">
-                <p id="cert-title" className={`text-xl text-gray-600 dark:text-gray-300 uppercase tracking-widest ${currentlySpokenId === 'cert-title' ? 'tts-highlight' : ''}`}>{translate('Certificate of Preparedness')}</p>
-                <AwardIcon className="h-24 w-24 text-amber-400 mx-auto my-6" />
-                <p id="cert-presented-to" className={`text-lg text-gray-600 dark:text-gray-300 ${currentlySpokenId === 'cert-presented-to' ? 'tts-highlight' : ''}`}>{translate('This certificate is proudly presented to')}</p>
-                <p id="cert-user-name" className={`text-5xl font-bold text-gray-900 dark:text-white my-2 script-font ${currentlySpokenId === 'cert-user-name' ? 'tts-highlight' : ''}`}>{user.name}</p>
-                <p id="cert-user-details" className={`text-xl text-gray-500 dark:text-gray-400 mt-1 mb-4 ${currentlySpokenId === 'cert-user-details' ? 'tts-highlight' : ''}`}>
-                    {translate(user.role)}: {translate(user.class)}
-                </p>
-                <p id="cert-reason" className={`text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto ${currentlySpokenId === 'cert-reason' ? 'tts-highlight' : ''}`}>
-                    {achievementReason}
-                </p>
-                <strong id="cert-achievement-title" className={`text-2xl font-bold text-teal-600 dark:text-teal-400 block mt-2 ${currentlySpokenId === 'cert-achievement-title' ? 'tts-highlight' : ''}`}>{achievementTitle}</strong>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t-2 border-gray-300 dark:border-gray-600">
-                <div>
-                    <p id="cert-date-label" className={`font-bold text-gray-700 dark:text-gray-200 ${currentlySpokenId === 'cert-date-label' ? 'tts-highlight' : ''}`}>{translate('Date of Completion')}</p>
-                    <p id="cert-date-value" className={`text-gray-600 dark:text-gray-400 ${currentlySpokenId === 'cert-date-value' ? 'tts-highlight' : ''}`}>{completionDate}</p>
+            <div className="relative z-10">
+                <div className="text-center border-b-2 border-gray-300 dark:border-gray-600 pb-6">
+                    <ShieldCheckIcon className="h-16 w-16 text-teal-600 dark:text-teal-400 mx-auto" />
+                    <h1 id="cert-inst-name" className={`text-2xl font-bold text-gray-800 dark:text-white mt-4 ${currentlySpokenId === 'cert-inst-name' ? 'tts-highlight' : ''}`}>{translate(user.institutionName)}</h1>
+                    <p id="cert-platform-name" className={`text-lg text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'cert-platform-name' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform')}</p>
                 </div>
-                 <div>
-                    <p id="cert-auth-label" className={`font-bold text-gray-700 dark:text-gray-200 mt-4 sm:mt-0 text-center ${currentlySpokenId === 'cert-auth-label' ? 'tts-highlight' : ''}`}>{translate('Authorized by')}</p>
-                    <p id="cert-auth-value" className={`text-gray-600 dark:text-gray-400 text-center italic ${currentlySpokenId === 'cert-auth-value' ? 'tts-highlight' : ''}`}>{translate('EduSafe Coordination Team')}</p>
+                <div className="my-10 text-center">
+                    <p id="cert-title" className={`text-xl text-gray-600 dark:text-gray-300 uppercase tracking-widest ${currentlySpokenId === 'cert-title' ? 'tts-highlight' : ''}`}>{translate('Certificate of Preparedness')}</p>
+                    <AwardIcon className="h-24 w-24 text-amber-400 mx-auto my-6" />
+                    <p id="cert-presented-to" className={`text-lg text-gray-600 dark:text-gray-300 ${currentlySpokenId === 'cert-presented-to' ? 'tts-highlight' : ''}`}>{translate('This certificate is proudly presented to')}</p>
+                    <p id="cert-user-name" className={`text-5xl font-bold text-gray-900 dark:text-white my-2 script-font ${currentlySpokenId === 'cert-user-name' ? 'tts-highlight' : ''}`}>{user.name}</p>
+                    <p id="cert-user-details" className={`text-xl text-gray-500 dark:text-gray-400 mt-1 mb-4 ${currentlySpokenId === 'cert-user-details' ? 'tts-highlight' : ''}`}>
+                        {translate(user.role)}: {translate(user.class)}
+                    </p>
+                    <p id="cert-reason" className={`text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto ${currentlySpokenId === 'cert-reason' ? 'tts-highlight' : ''}`}>
+                        {achievementReason}
+                    </p>
+                    <strong id="cert-achievement-title" className={`text-2xl font-bold text-teal-600 dark:text-teal-400 block mt-2 ${currentlySpokenId === 'cert-achievement-title' ? 'tts-highlight' : ''}`}>{achievementTitle}</strong>
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t-2 border-gray-300 dark:border-gray-600">
+                    <div className="text-center sm:text-left">
+                        <p id="cert-date-label" className={`font-bold text-gray-700 dark:text-gray-200 ${currentlySpokenId === 'cert-date-label' ? 'tts-highlight' : ''}`}>{translate('Date of Completion')}</p>
+                        <p id="cert-date-value" className={`text-gray-600 dark:text-gray-400 ${currentlySpokenId === 'cert-date-value' ? 'tts-highlight' : ''}`}>{completionDate}</p>
+                    </div>
+                     <div className="text-center my-4 sm:my-0">
+                        <IndianFlagIcon className="h-12 w-12 mx-auto" />
+                        <p id="cert-issued-by" className={`text-xs mt-1 text-gray-600 dark:text-gray-400 ${currentlySpokenId === 'cert-issued-by' ? 'tts-highlight' : ''}`}>{translate('Issued in collaboration with')}</p>
+                        <p id="cert-gov-of-india" className={`font-semibold text-gray-800 dark:text-white ${currentlySpokenId === 'cert-gov-of-india' ? 'tts-highlight' : ''}`}>{translate('Government of India')}</p>
+                     </div>
+                     <div className="text-center sm:text-right">
+                        <p id="cert-auth-label" className={`font-bold text-gray-700 dark:text-gray-200 ${currentlySpokenId === 'cert-auth-label' ? 'tts-highlight' : ''}`}>{translate('Authorized by')}</p>
+                        <p id="cert-auth-value" className={`text-gray-600 dark:text-gray-400 italic ${currentlySpokenId === 'cert-auth-value' ? 'tts-highlight' : ''}`}>{translate('EduSafe Platform & NDMA')}</p>
+                    </div>
                 </div>
             </div>
         </div>

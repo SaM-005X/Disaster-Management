@@ -4,6 +4,7 @@ import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { TwitterIcon } from './icons/TwitterIcon';
 import { FacebookIcon } from './icons/FacebookIcon';
 import { InstagramIcon } from './icons/InstagramIcon';
+import { IndianFlagIcon } from './icons/IndianFlagIcon';
 
 interface FooterProps {
     onDashboardClick: () => void;
@@ -59,15 +60,16 @@ const Footer: React.FC<FooterProps> = ({ onDashboardClick, onLabClick, onOpenPan
                         </div>
                     </div>
 
-                    {/* Credits */}
+                    {/* Supported By */}
                     <div>
-                        <h3 className="text-lg font-semibold text-white mb-4">{translate('Credits')}</h3>
-                        <p className="text-sm">{translate('Proudly supported by:')}</p>
-                        <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                            <li>{translate('Government of India')}</li>
-                            <li>{translate('Government of Punjab')}</li>
-                            <li>{translate('National Disaster Management Authority')}</li>
-                        </ul>
+                        <h3 className="text-lg font-semibold text-white mb-4">{translate('Supported By')}</h3>
+                        <div className="flex items-center gap-4">
+                            <IndianFlagIcon className="h-12 w-12" />
+                            <div>
+                                <p className="font-bold text-white">{translate('Government of India')}</p>
+                                <p className="text-sm">{translate('National Disaster Management Authority')}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div className="mt-8 border-t border-gray-700 pt-6 text-center text-sm text-gray-500">

@@ -47,6 +47,18 @@ const MOCK_RESOURCES: Resource[] = [
   { id: 'res-5', type: 'Shelter Units' as ResourceType, location: 'Bengaluru', status: 'Available' as ResourceStatus, quantity: 250, lastUpdated: new Date().toISOString() },
 ];
 
+const OfficialBanner: React.FC = () => {
+    const { translate } = useTranslate();
+    return (
+        <div className="bg-gradient-to-r from-orange-50 via-white to-green-50 dark:from-orange-900/20 dark:via-gray-800/20 dark:to-green-900/20 py-2 text-center shadow-sm">
+            <p className="font-bold text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-gray-700 to-green-700 dark:from-orange-400 dark:via-gray-300 dark:to-green-400">
+                {translate('Sikshit Bharat, Surakshit Bharat')}
+            </p>
+        </div>
+    );
+};
+
+
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -949,6 +961,7 @@ const App: React.FC = () => {
 
         <div className="flex-1 flex flex-col lg:ml-64">
            {isAuthenticated && currentUser ? (
+              <>
                <Header
                   user={currentUser}
                   // Fix: Pass the required 'institution' prop, constructed from the currentUser object.
@@ -965,6 +978,8 @@ const App: React.FC = () => {
                   onMenuClick={() => setIsSidebarOpen(prev => !prev)}
                   showMenuButton={true}
                />
+               <OfficialBanner />
+              </>
            ) : (
             <div className="h-[69px] border-b border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
            )}

@@ -14,6 +14,7 @@ import { StopIcon } from './icons/StopIcon';
 import { MenuIcon } from './icons/MenuIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import ConnectivityStatusIndicator from './ConnectivityStatusIndicator';
+import { IndianFlagIcon } from './icons/IndianFlagIcon';
 
 interface HeaderProps {
   user: User;
@@ -60,13 +61,21 @@ const Header: React.FC<HeaderProps> = ({ user, institution, onProfileClick, onLo
   return (
     <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
       <div className="container mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
           {showMenuButton && (
              <button onClick={onMenuClick} className={`${buttonBaseClasses} lg:hidden`}>
                 <MenuIcon className="h-6 w-6" />
              </button>
           )}
-          <ShieldCheckIcon className="h-8 w-8 text-teal-600 dark:text-teal-400" />
+          {/* Official Government Branding */}
+          <IndianFlagIcon className="h-8 w-8 flex-shrink-0" />
+          <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 hidden sm:flex items-center gap-x-2 sm:gap-x-3">
+            <span>{translate('Government of India')}</span>
+            <span className="text-gray-300 dark:text-gray-600">|</span>
+          </div>
+
+          {/* App Branding */}
+          <ShieldCheckIcon className="h-8 w-8 text-teal-600 dark:text-teal-400 flex-shrink-0" />
           <h1 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
             {translate('Disaster Ready')}
           </h1>
