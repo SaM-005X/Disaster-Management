@@ -66,6 +66,7 @@ const OfficialBanner: React.FC = () => {
 
 const App: React.FC = () => {
   // --- STATE MANAGEMENT ---
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [allProgressData, setAllProgressData] = useState<Record<string, StudentProgress>>({});
@@ -327,49 +328,22 @@ const App: React.FC = () => {
       console.error("Failed to load state from storage:", error);
       localStorage.clear();
       sessionStorage.clear();
+    } finally {
+      setIsDataLoaded(true);
     }
   }, []); // Empty dependency array means this runs only once
 
   // Save persistent data to localStorage when it changes
-  useEffect(() => { localStorage.setItem('learningModules', JSON.stringify(modules)); }, [modules]);
-  useEffect(() => { localStorage.setItem('learningQuizzes', JSON.stringify(quizzes)); }, [quizzes]);
-  useEffect(() => { localStorage.setItem('simulationGuides', JSON.stringify(simulationGuides)); }, [simulationGuides]);
-  useEffect(() => { localStorage.setItem('latestNews', JSON.stringify(latestNews)); }, [latestNews]);
-  useEffect(() => { localStorage.setItem('previousNews', JSON.stringify(previousNews)); }, [previousNews]);
-
-  useEffect(() => {
-    if (allUsers.length > 0) {
-        localStorage.setItem('allUsers', JSON.stringify(allUsers));
-    }
-  }, [allUsers]);
-
-  useEffect(() => {
-     if (Object.keys(allProgressData).length > 0) {
-        localStorage.setItem('allProgressData', JSON.stringify(allProgressData));
-    }
-  }, [allProgressData]);
-
-  useEffect(() => {
-    if (Object.keys(certificationStatus).length > 0) {
-        localStorage.setItem('certificationStatus', JSON.stringify(certificationStatus));
-    }
-  }, [certificationStatus]);
-
-  useEffect(() => {
-    if (storedFloorplans.length > 0) {
-        localStorage.setItem('storedFloorplans', JSON.stringify(storedFloorplans));
-    } else {
-        localStorage.removeItem('storedFloorplans');
-    }
-  }, [storedFloorplans]);
-  
-  useEffect(() => {
-    if (aiNotes.length > 0) {
-        localStorage.setItem('aiNotes', JSON.stringify(aiNotes));
-    } else {
-        localStorage.removeItem('aiNotes');
-    }
-  }, [aiNotes]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('learningModules', JSON.stringify(modules)); }, [modules, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('learningQuizzes', JSON.stringify(quizzes)); }, [quizzes, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('simulationGuides', JSON.stringify(simulationGuides)); }, [simulationGuides, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('latestNews', JSON.stringify(latestNews)); }, [latestNews, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('previousNews', JSON.stringify(previousNews)); }, [previousNews, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('allUsers', JSON.stringify(allUsers)); }, [allUsers, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('allProgressData', JSON.stringify(allProgressData)); }, [allProgressData, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('certificationStatus', JSON.stringify(certificationStatus)); }, [certificationStatus, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('storedFloorplans', JSON.stringify(storedFloorplans)); }, [storedFloorplans, isDataLoaded]);
+  useEffect(() => { if (isDataLoaded) localStorage.setItem('aiNotes', JSON.stringify(aiNotes)); }, [aiNotes, isDataLoaded]);
 
   // Save session data to sessionStorage when relevant state changes
   useEffect(() => {
