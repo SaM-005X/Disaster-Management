@@ -3,6 +3,7 @@ import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
 import { UploadIcon } from './icons/UploadIcon';
 import type { StoredFloorplan } from '../types';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 const fileToUrlAndDimensions = (file: File): Promise<{ url: string, width: number, height: number }> => {
     return new Promise((resolve, reject) => {
@@ -40,6 +41,7 @@ interface FloorplanEditModalProps {
 
 const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose, onSave, onUpdate, existingPlan, isGlobal }) => {
     const { translate } = useTranslate();
+    const { registerTexts, currentlySpokenId } = useTTS();
     const [name, setName] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -47,6 +49,7 @@ const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isEditing = !!existingPlan;
+    const modalTitle = isEditing ? translate('Replace Floor Plan') : (isGlobal ? translate('Add New Public Plan') : translate('Add New Personal Plan'));
 
     useEffect(() => {
         if (isOpen) {
@@ -70,6 +73,19 @@ const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose
             }
         }
     }, [previewUrl]);
+
+    useEffect(() => {
+        if (isOpen) {
+            const texts: TTSText[] = [
+                { id: 'fp-modal-title', text: modalTitle },
+                { id: 'fp-modal-label-name', text: translate('Plan Name') },
+                { id: 'fp-modal-label-image', text: isEditing ? translate('Upload New Image (Optional)') : translate('Floor Plan Image') },
+                { id: 'fp-modal-upload-prompt', text: `${translate('Upload a file')} ${translate('or drag and drop')}` },
+            ];
+            registerTexts(texts);
+        }
+    }, [isOpen, modalTitle, isEditing, translate, registerTexts]);
+
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
@@ -114,7 +130,6 @@ const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose
 
     if (!isOpen) return null;
 
-    const modalTitle = isEditing ? translate('Replace Floor Plan') : (isGlobal ? translate('Add New Public Plan') : translate('Add New Personal Plan'));
     const saveButtonText = isEditing ? translate('Save Changes') : translate('Save Plan');
 
     return (
@@ -123,18 +138,18 @@ const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose
                 <form onSubmit={handleSubmit}>
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 id="floorplan-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white">{modalTitle}</h2>
+                            <h2 id="floorplan-modal-title" className={`text-2xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'fp-modal-title' ? 'tts-highlight' : ''}`}>{modalTitle}</h2>
                             <button type="button" onClick={onClose} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label={translate('Close')}>
                                 <XIcon className="h-6 w-6" />
                             </button>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label htmlFor="plan-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Plan Name')}</label>
+                                <label htmlFor="plan-name" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'fp-modal-label-name' ? 'tts-highlight' : ''}`}>{translate('Plan Name')}</label>
                                 <input type="text" name="name" id="plan-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder={translate("e.g., Home First Floor, Office Building B")} className="mt-1 block w-full input-style" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{isEditing ? translate('Upload New Image (Optional)') : translate('Floor Plan Image')}</label>
+                                <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'fp-modal-label-image' ? 'tts-highlight' : ''}`}>{isEditing ? translate('Upload New Image (Optional)') : translate('Floor Plan Image')}</label>
                                 <div className="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
                                     <div className="space-y-1 text-center">
                                         {previewUrl ? (
@@ -144,10 +159,10 @@ const FloorplanEditModal: React.FC<FloorplanEditModalProps> = ({ isOpen, onClose
                                         )}
                                         <div className="flex text-sm text-gray-600 dark:text-gray-400">
                                             <label htmlFor="file-upload" className="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-teal-500">
-                                                <span>{translate('Upload a file')}</span>
+                                                <span className={currentlySpokenId === 'fp-modal-upload-prompt' ? 'tts-highlight' : ''}>{translate('Upload a file')}</span>
                                                 <input ref={fileInputRef} id="file-upload" name="file-upload" type="file" className="sr-only" accept="image/*" onChange={handleFileChange} />
                                             </label>
-                                            <p className="pl-1">{translate('or drag and drop')}</p>
+                                            <p className={`pl-1 ${currentlySpokenId === 'fp-modal-upload-prompt' ? 'tts-highlight' : ''}`}>{translate('or drag and drop')}</p>
                                         </div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400">{file ? file.name : translate('PNG, JPG, GIF up to 10MB')}</p>
                                     </div>

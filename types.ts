@@ -214,3 +214,42 @@ export interface ModelSimulationGuide {
     moduleId: string;
     scenarios: ModelSimulationScenario[];
 }
+
+export interface ChatMessage {
+  id: string;
+  chatRoomId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatarUrl: string;
+  text: string;
+  timestamp: string; // ISO date string
+}
+
+export interface ChatRoom {
+  id: string;
+  name: string;
+  type: 'private' | 'global';
+  ownerId?: string; // for private chats
+  memberIds: string[];
+  allowedRoles?: UserRole[]; // for private chats, e.g., [UserRole.TEACHER]
+}
+
+export interface ChatInvitation {
+  id: string;
+  roomId: string;
+  roomName: string;
+  inviterId: string;
+  inviterName: string;
+  inviteeId: string;
+  status: 'pending' | 'accepted' | 'declined';
+  timestamp: string; // ISO date string
+}
+
+export interface GlobalNotice {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  postedById: string;
+  postedByName: string;
+  timestamp: string; // ISO date string
+}

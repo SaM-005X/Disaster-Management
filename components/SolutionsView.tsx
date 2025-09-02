@@ -231,7 +231,12 @@ ${moduleContextForAI}
                                 </li>
                               ))}
                             </ul>
-                             {quizExplanations[module.id]?.isLoading && !explanationData && ( <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">{translate('Loading explanation...')}</div> )}
+                             {quizExplanations[module.id]?.isLoading && !explanationData && (
+                                <div className="mt-2 p-3 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-teal-500 rounded-full animate-spin"></div>
+                                    {translate('Generating AI explanation...')}
+                                </div>
+                             )}
                              {explanationData && (
                                 <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
                                     <div id={`q-${q.id}-explanation`} className={`prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 ${currentlySpokenId === `q-${q.id}-explanation` ? 'tts-highlight' : ''}`}>

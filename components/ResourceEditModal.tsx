@@ -3,6 +3,7 @@ import type { Resource, ResourceType, ResourceStatus } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
 import { ResourceType as ResourceTypeEnum } from '../types';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 interface ResourceEditModalProps {
   resource: Resource | null;
@@ -14,6 +15,7 @@ const ALL_STATUSES: ResourceStatus[] = ['Available', 'Deployed', 'Low Stock'];
 
 const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave, onClose }) => {
   const { translate } = useTranslate();
+  const { registerTexts, currentlySpokenId } = useTTS();
   const [formData, setFormData] = useState({
     type: ResourceTypeEnum.MEDICAL_KITS,
     location: '',
@@ -22,6 +24,7 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
   });
 
   const isEditing = !!resource;
+  const modalTitle = isEditing ? translate('Edit Resource') : translate('Add New Resource');
 
   useEffect(() => {
     if (resource) {
@@ -33,6 +36,17 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
       });
     }
   }, [resource]);
+  
+  useEffect(() => {
+    const texts: TTSText[] = [
+        { id: 'resource-modal-title', text: modalTitle },
+        { id: 'resource-modal-label-type', text: translate('Resource Type') },
+        { id: 'resource-modal-label-location', text: translate('Location') },
+        { id: 'resource-modal-label-status', text: translate('Status') },
+        { id: 'resource-modal-label-quantity', text: translate('Quantity') },
+    ];
+    registerTexts(texts);
+  }, [modalTitle, translate, registerTexts]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -55,8 +69,8 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
         <form onSubmit={handleSubmit}>
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 id="resource-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white">
-                {isEditing ? translate('Edit Resource') : translate('Add New Resource')}
+              <h2 id="resource-modal-title" className={`text-2xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'resource-modal-title' ? 'tts-highlight' : ''}`}>
+                {modalTitle}
               </h2>
               <button
                 type="button"
@@ -69,7 +83,7 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
             </div>
             <div className="space-y-4">
               <div>
-                <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="type" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'resource-modal-label-type' ? 'tts-highlight' : ''}`}>
                   {translate('Resource Type')}
                 </label>
                 <select
@@ -86,7 +100,7 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
                 </select>
               </div>
                <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="location" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'resource-modal-label-location' ? 'tts-highlight' : ''}`}>
                   {translate('Location')}
                 </label>
                 <input
@@ -101,7 +115,7 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="status" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'resource-modal-label-status' ? 'tts-highlight' : ''}`}>
                     {translate('Status')}
                   </label>
                   <select
@@ -118,7 +132,7 @@ const ResourceEditModal: React.FC<ResourceEditModalProps> = ({ resource, onSave,
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="quantity" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'resource-modal-label-quantity' ? 'tts-highlight' : ''}`}>
                     {translate('Quantity')}
                   </label>
                   <input

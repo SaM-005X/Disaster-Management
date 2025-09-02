@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { useTranslate } from '../contexts/TranslationContext';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 import { UploadIcon } from './icons/UploadIcon';
 import { XIcon } from './icons/XIcon';
 import ErrorMessage from './ErrorMessage';
@@ -113,6 +114,7 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { translate } = useTranslate();
+    const { registerTexts, currentlySpokenId } = useTTS();
     
     const lastRoutePoint = exitPlan?.route[exitPlan.route.length - 1];
     
@@ -336,11 +338,61 @@ Based on the user's situation and your knowledge base, provide general, step-by-
         setIsModalOpen(true);
     };
 
+     const localPlans = useMemo(() => storedFloorplans.filter(p => !p.isGlobal && p.ownerId === currentUser?.id), [storedFloorplans, currentUser]);
+     const globalPlans = useMemo(() => storedFloorplans.filter(p => p.isGlobal), [storedFloorplans]);
+     const [activeTab, setActiveTab] = useState<'local' | 'global'>('local');
+    
+    useEffect(() => {
+        const texts: TTSText[] = [];
+        
+        texts.push({ id: 'exit-planner-header', text: translate('AI Emergency Exit Planner') });
+        texts.push({ id: 'exit-planner-subheader', text: translate('Describe your location for general advice, or upload a floorplan and mark your position for a visualized route.') });
+
+        if (isStorageVisible) {
+            texts.push({ id: 'saved-plans-header', text: translate('Saved Floor Plans') });
+            texts.push({ id: 'my-plans-tab', text: translate('My Plans') });
+            texts.push({ id: 'public-plans-tab', text: translate('Public Plans') });
+            const plansToShow = activeTab === 'local' ? localPlans : globalPlans;
+            plansToShow.forEach(plan => {
+                texts.push({ id: `plan-card-${plan.id}-name`, text: translate(plan.name) });
+            });
+        }
+        
+        const locationLabel = floorplanUrl ? translate('Describe your location on the floorplan...') : translate('Describe your current location or situation...');
+        texts.push({ id: 'location-input-label', text: locationLabel });
+        
+        if (!floorplanUrl) {
+            if (chatbotResponse) {
+                texts.push({ id: 'chatbot-response', text: chatbotResponse });
+            } else {
+                texts.push({ id: 'chatbot-placeholder-title', text: translate('Safety Assistant Mode') });
+                texts.push({ id: 'chatbot-placeholder-desc', text: translate('No floorplan selected or uploaded. Describe your situation above for general safety advice.') });
+            }
+        } else {
+            const statusHeader = exitPlan ? translate('Your Evacuation Plan') : (userLocation || textLocationInput.trim() ? translate('Location Set, Ready to Generate') : translate('Mark or Describe Your Location'));
+            texts.push({ id: 'planner-status-header', text: statusHeader });
+            texts.push({ id: 'reset-location-btn', text: translate('Reset Location') });
+            texts.push({ id: 'clear-plan-btn', text: translate('Clear Plan') });
+
+            if (exitPlan) {
+                texts.push({ id: 'evacuation-instructions-header', text: translate('Your Evacuation Route') });
+                exitPlan.instructions.forEach((step, index) => {
+                    texts.push({ id: `instruction-step-${index}`, text: translate(step) });
+                });
+            } else {
+                texts.push({ id: 'mark-location-prompt', text: translate('Click on the map or type in the box above to set your location.') });
+            }
+        }
+        
+        registerTexts(texts);
+    }, [translate, registerTexts, isStorageVisible, activeTab, localPlans, globalPlans, floorplanUrl, exitPlan, userLocation, textLocationInput, chatbotResponse]);
+
+
     return (
         <div>
             <div className="mb-8 text-center">
-                <h1 className="text-4xl font-extrabold text-gray-800 dark:text-white">{translate('AI Emergency Exit Planner')}</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2 max-w-3xl mx-auto">
+                <h1 id="exit-planner-header" className={`text-4xl font-extrabold text-gray-800 dark:text-white ${currentlySpokenId === 'exit-planner-header' ? 'tts-highlight' : ''}`}>{translate('AI Emergency Exit Planner')}</h1>
+                <p id="exit-planner-subheader" className={`text-gray-600 dark:text-gray-400 mt-2 max-w-3xl mx-auto ${currentlySpokenId === 'exit-planner-subheader' ? 'tts-highlight' : ''}`}>
                     {translate('Describe your location for general advice, or upload a floorplan and mark your position for a visualized route.')}
                 </p>
             </div>
@@ -352,7 +404,7 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                         className="w-full flex justify-between items-center p-4"
                         aria-expanded={isStorageVisible}
                     >
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">{translate('Saved Floor Plans')}</h2>
+                        <h2 id="saved-plans-header" className={`text-xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'saved-plans-header' ? 'tts-highlight' : ''}`}>{translate('Saved Floor Plans')}</h2>
                         {isStorageVisible ? <ChevronUpIcon className="h-6 w-6 text-gray-500" /> : <ChevronDownIcon className="h-6 w-6 text-gray-500" />}
                     </button>
                     {isStorageVisible && (
@@ -370,6 +422,9 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                             onAddPlan={(isGlobal) => handleOpenModal(null, isGlobal)}
                             onReplacePlan={(plan) => handleOpenModal(plan, plan.isGlobal)}
                             onDeletePlan={onDeleteFloorplan}
+                            currentlySpokenId={currentlySpokenId}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
                         />
                     )}
                 </div>
@@ -381,7 +436,7 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                 </div>
 
                 <div className="mb-4">
-                    <label htmlFor="location-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label htmlFor="location-input" id="location-input-label" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 ${currentlySpokenId === 'location-input-label' ? 'tts-highlight' : ''}`}>
                         {floorplanUrl ? translate('Describe your location on the floorplan...') : translate('Describe your current location or situation...')}
                     </label>
                     <div className="flex flex-col sm:flex-row gap-2">
@@ -420,14 +475,14 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                     {!floorplanUrl ? (
                         <div className="text-center">
                             {chatbotResponse ? (
-                                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-left">
+                                <div id="chatbot-response" className={`p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-left ${currentlySpokenId === 'chatbot-response' ? 'tts-highlight' : ''}`}>
                                     <div className="text-gray-800 dark:text-gray-200 max-w-none space-y-4" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(chatbotResponse) }} />
                                 </div>
                             ) : (
                                 <div className="p-6 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                     <MessageSquareIcon className="mx-auto h-12 w-12 text-gray-400" />
-                                    <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">{translate('Safety Assistant Mode')}</h3>
-                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{translate('No floorplan selected or uploaded. Describe your situation above for general safety advice.')}</p>
+                                    <h3 id="chatbot-placeholder-title" className={`mt-2 text-lg font-medium text-gray-900 dark:text-white ${currentlySpokenId === 'chatbot-placeholder-title' ? 'tts-highlight' : ''}`}>{translate('Safety Assistant Mode')}</h3>
+                                    <p id="chatbot-placeholder-desc" className={`mt-1 text-sm text-gray-500 dark:text-gray-400 ${currentlySpokenId === 'chatbot-placeholder-desc' ? 'tts-highlight' : ''}`}>{translate('No floorplan selected or uploaded. Describe your situation above for general safety advice.')}</p>
                                 </div>
                             )}
                              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="sr-only"/>
@@ -436,17 +491,17 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                     ) : (
                         <div>
                             <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                                <h2 id="planner-status-header" className={`text-xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'planner-status-header' ? 'tts-highlight' : ''}`}>
                                     {exitPlan ? translate('Your Evacuation Plan') : (userLocation || textLocationInput.trim() ? translate('Location Set, Ready to Generate') : translate('Mark or Describe Your Location'))}
                                 </h2>
                                 <div className="flex items-center gap-4">
                                     <button onClick={handleResetPlan} className="flex items-center gap-2 text-sm font-semibold text-amber-600 hover:text-amber-500 dark:text-amber-400 dark:hover:text-amber-300 transition-colors">
                                         <RefreshCwIcon className="h-5 w-5" />
-                                        <span>{translate('Reset Location')}</span>
+                                        <span id="reset-location-btn" className={currentlySpokenId === 'reset-location-btn' ? 'tts-highlight' : ''}>{translate('Reset Location')}</span>
                                     </button>
                                     <button onClick={handleClearPlanner} className="flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors">
                                         <XIcon className="h-5 w-5" />
-                                        <span>{translate('Clear Plan')}</span>
+                                        <span id="clear-plan-btn" className={currentlySpokenId === 'clear-plan-btn' ? 'tts-highlight' : ''}>{translate('Clear Plan')}</span>
                                     </button>
                                 </div>
                             </div>
@@ -478,14 +533,14 @@ Based on the user's situation and your knowledge base, provide general, step-by-
                                 <div className="flex flex-col justify-center h-full">
                                     {exitPlan ? (
                                         <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3">{translate('Your Evacuation Route')}</h3>
+                                            <h3 id="evacuation-instructions-header" className={`text-lg font-bold text-gray-800 dark:text-white mb-3 ${currentlySpokenId === 'evacuation-instructions-header' ? 'tts-highlight' : ''}`}>{translate('Your Evacuation Route')}</h3>
                                             <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
-                                                {exitPlan.instructions.map((step, index) => <li key={index}>{translate(step)}</li>)}
+                                                {exitPlan.instructions.map((step, index) => <li key={index} id={`instruction-step-${index}`} className={currentlySpokenId === `instruction-step-${index}` ? 'tts-highlight' : ''}>{translate(step)}</li>)}
                                             </ol>
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-teal-50 dark:bg-teal-900/50 rounded-lg text-center">
-                                            <p className="font-semibold text-teal-800 dark:text-teal-200">
+                                            <p id="mark-location-prompt" className={`font-semibold text-teal-800 dark:text-teal-200 ${currentlySpokenId === 'mark-location-prompt' ? 'tts-highlight' : ''}`}>
                                                 {translate('Click on the map or type in the box above to set your location.')}
                                             </p>
                                         </div>
@@ -522,14 +577,15 @@ const FloorplanCard: React.FC<{
     onReplace: () => void;
     onDelete: () => void;
     canEdit: boolean;
-}> = ({ plan, onSelect, onReplace, onDelete, canEdit }) => {
+    currentlySpokenId: string | null;
+}> = ({ plan, onSelect, onReplace, onDelete, canEdit, currentlySpokenId }) => {
     const { translate } = useTranslate();
     return (
         <div className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
             <button onClick={onSelect} className="block w-full text-left">
                 <img src={plan.imageDataUrl} alt={plan.name} className="w-full h-32 object-cover bg-gray-200 dark:bg-gray-600 group-hover:opacity-80 transition-opacity" />
                 <div className="p-3">
-                    <p className="font-semibold text-gray-800 dark:text-white truncate" title={plan.name}>{translate(plan.name)}</p>
+                    <p id={`plan-card-${plan.id}-name`} className={`font-semibold text-gray-800 dark:text-white truncate ${currentlySpokenId === `plan-card-${plan.id}-name` ? 'tts-highlight' : ''}`} title={plan.name}>{translate(plan.name)}</p>
                 </div>
             </button>
             {canEdit && (
@@ -553,8 +609,10 @@ const FloorplanStorage: React.FC<{
     onAddPlan: (isGlobal: boolean) => void;
     onReplacePlan: (plan: StoredFloorplan) => void;
     onDeletePlan: (planId: string) => void;
-}> = ({ currentUser, storedFloorplans, onSelectPlan, onAddPlan, onReplacePlan, onDeletePlan }) => {
-    const [activeTab, setActiveTab] = useState<'local' | 'global'>('local');
+    currentlySpokenId: string | null;
+    activeTab: 'local' | 'global';
+    setActiveTab: (tab: 'local' | 'global') => void;
+}> = ({ currentUser, storedFloorplans, onSelectPlan, onAddPlan, onReplacePlan, onDeletePlan, currentlySpokenId, activeTab, setActiveTab }) => {
     const { translate } = useTranslate();
 
     if (!currentUser) return null;
@@ -562,21 +620,14 @@ const FloorplanStorage: React.FC<{
     const localPlans = storedFloorplans.filter(p => !p.isGlobal && p.ownerId === currentUser.id);
     const globalPlans = storedFloorplans.filter(p => p.isGlobal);
 
-    // Refined permission logic: Determine if the current user can edit the selected tab.
     const userCanEditCurrentTab = useMemo(() => {
-        // Users can always add, edit, or delete their own "My Plans".
-        if (activeTab === 'local') {
-            return true;
-        }
-        // Only Government Officials can add, edit, or delete "Public Plans".
-        if (activeTab === 'global') {
-            return currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
-        }
+        if (activeTab === 'local') return true;
+        if (activeTab === 'global') return currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
         return false;
     }, [activeTab, currentUser.role]);
 
     const plansToShow = activeTab === 'local' ? localPlans : globalPlans;
-    const canAdd = userCanEditCurrentTab; // The add button visibility depends on the same logic.
+    const canAdd = userCanEditCurrentTab;
     const addButtonText = activeTab === 'local' ? translate('Add My Plan') : translate('Add Public Plan');
 
     return (
@@ -584,8 +635,8 @@ const FloorplanStorage: React.FC<{
             <div className="flex justify-between items-center mb-4">
                 <div className="border-b border-gray-200 dark:border-gray-700">
                     <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                        <button onClick={() => setActiveTab('local')} className={`${activeTab === 'local' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}>{translate('My Plans')}</button>
-                        <button onClick={() => setActiveTab('global')} className={`${activeTab === 'global' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}>{translate('Public Plans')}</button>
+                        <button id="my-plans-tab" onClick={() => setActiveTab('local')} className={`${activeTab === 'local' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${currentlySpokenId === 'my-plans-tab' ? 'tts-highlight' : ''}`}>{translate('My Plans')}</button>
+                        <button id="public-plans-tab" onClick={() => setActiveTab('global')} className={`${activeTab === 'global' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${currentlySpokenId === 'public-plans-tab' ? 'tts-highlight' : ''}`}>{translate('Public Plans')}</button>
                     </nav>
                 </div>
                 {canAdd && (
@@ -606,6 +657,7 @@ const FloorplanStorage: React.FC<{
                             onReplace={() => onReplacePlan(plan)}
                             onDelete={() => onDeletePlan(plan.id)}
                             canEdit={userCanEditCurrentTab}
+                            currentlySpokenId={currentlySpokenId}
                         />
                     ))}
                 </div>

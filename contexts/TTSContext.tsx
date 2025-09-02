@@ -168,8 +168,15 @@ export const TTSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, []);
 
     const registerTexts = useCallback((texts: TTSText[]) => {
+        const filteredTexts = texts.filter(t => t.text && t.text.trim() !== '');
+
+        // Prevent unnecessary updates and speech interruption if the content is the same.
+        if (JSON.stringify(filteredTexts) === JSON.stringify(queueRef.current)) {
+            return;
+        }
+
         stopReadAloud();
-        setQueue(texts.filter(t => t.text && t.text.trim() !== ''));
+        setQueue(filteredTexts);
     }, [stopReadAloud]);
     
     const clearQueue = useCallback(() => {

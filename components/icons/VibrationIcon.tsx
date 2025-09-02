@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const LockIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+export const VibrationIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg
     {...props}
     xmlns="http://www.w3.org/2000/svg"
@@ -13,7 +13,8 @@ export const LockIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    <path d="M2 8L4 10L2 12L4 14L2 16" />
+    <path d="M22 8L20 10L22 12L20 14L22 16" />
+    <rect x="6" y="4" width="12" height="16" rx="2" />
   </svg>
 );

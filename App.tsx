@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { MODULES as INITIAL_MODULES, QUIZZES as INITIAL_QUIZZES } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote, ModelSimulationGuide, NewsArticle } from './types';
+import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote, ModelSimulationGuide, NewsArticle, ChatRoom, ChatMessage, ChatInvitation, GlobalNotice } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -37,12 +37,17 @@ import { supabase } from './services/supabaseClient';
 import ModuleEditModal from './components/ModuleEditModal';
 import QuizEditModal from './components/QuizEditModal';
 import SimulationGuideEditModal from './components/SimulationGuideEditModal';
+import ChatPage from './components/ChatPage';
+import IoTAlertDashboard from './components/IoTAlertDashboard';
+import GlobalAlertBanner from './components/GlobalAlertBanner';
+import { ShieldCheckIcon } from './components/icons/ShieldCheckIcon';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook' | 'chat' | 'iot';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
 export type LabView = 'lab_dashboard' | 'simulation' | 'final_certificate' | 'solutions';
 export type Theme = 'light' | 'dark';
 export type AvatarMood = 'neutral' | 'happy' | 'thinking' | 'encouraging';
+export type AlertType = 'fire' | 'seismic';
 
 const MOCK_RESOURCES: Resource[] = [
   { id: 'res-1', type: 'Medical Kits' as ResourceType, location: 'New Delhi', status: 'Available' as ResourceStatus, quantity: 500, lastUpdated: new Date().toISOString() },
@@ -59,6 +64,17 @@ const OfficialBanner: React.FC = () => {
             <p className="font-extrabold tracking-wide text-sm sm:text-base text-gray-800 dark:text-black">
                 {translate('Sikshit Bharat, Surakshit Bharat')}
             </p>
+        </div>
+    );
+};
+
+const FullScreenLoader: React.FC = () => {
+    const { translate } = useTranslate();
+    return (
+        <div className="fixed inset-0 bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center z-[100]">
+            <ShieldCheckIcon className="h-20 w-20 text-teal-500 animate-pulse" />
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mt-4">{translate('Surksha')}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">{translate('Loading essential data, please wait...')}</p>
         </div>
     );
 };
@@ -91,6 +107,17 @@ const App: React.FC = () => {
   const [aiNotes, setAiNotes] = useState<AINote[]>([]);
   const [latestNews, setLatestNews] = useState<NewsArticle[]>([]);
   const [previousNews, setPreviousNews] = useState<NewsArticle[]>([]);
+    
+  // Chat State
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInvitations, setChatInvitations] = useState<ChatInvitation[]>([]);
+  const [globalNotices, setGlobalNotices] = useState<GlobalNotice[]>([]);
+
+  // IoT Alert State
+  const [activeAlert, setActiveAlert] = useState<AlertType | null>(null);
+  const beepIntervalRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   const isAuthenticated = !!currentUser;
 
@@ -162,54 +189,128 @@ const App: React.FC = () => {
         };
     }, [translate]);
 
+  // Supabase Realtime Listener for IoT Alerts
+  useEffect(() => {
+    const channel = supabase
+      .channel('alerts')
+      .on('broadcast', { event: 'new-alert' }, ({ payload }) => {
+        console.log('Received alert from IoT device:', payload);
+        if (payload && (payload.type === 'fire' || payload.type === 'seismic')) {
+          setActiveAlert(payload.type);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // Runs only once
+
+  // Audible Alert Effect
+  useEffect(() => {
+    if (activeAlert) {
+      // Start beeping
+      if (!audioCtxRef.current) {
+        try {
+          audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+          console.error("Web Audio API is not supported in this browser.", e);
+          return;
+        }
+      }
+
+      const playBeep = () => {
+        if (!audioCtxRef.current) return;
+        const oscillator = audioCtxRef.current.createOscillator();
+        const gainNode = audioCtxRef.current.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtxRef.current.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1000, audioCtxRef.current.currentTime);
+        gainNode.gain.setValueAtTime(0.5, audioCtxRef.current.currentTime);
+        
+        oscillator.start(audioCtxRef.current.currentTime);
+        oscillator.stop(audioCtxRef.current.currentTime + 0.1);
+      };
+
+      if (beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current);
+      }
+      playBeep(); // Play immediately once
+      beepIntervalRef.current = window.setInterval(playBeep, 1000);
+
+    } else {
+      // Stop beeping
+      if (beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+      }
+    }
+
+    // Cleanup for this effect
+    return () => {
+      if (beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current);
+      }
+    };
+  }, [activeAlert]);
+
+
   // Supabase Auth Listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        const { user } = session;
-        const userExistsInState = allUsers.some(u => u.id === user.id);
-        
-        // Construct the user profile from Supabase data
-        const userProfile: User = {
-          id: user.id,
-          name: user.user_metadata.fullName,
-          email: user.email,
-          role: user.user_metadata.role,
-          institutionName: user.user_metadata.institutionName,
-          class: user.user_metadata.class,
-          avatarUrl: user.user_metadata.avatar_url || `https://picsum.photos/seed/${user.user_metadata.fullName}/100/100`,
-          avatarStyle: 'default',
-          homeAddress: '',
-          institutionAddress: '',
-          institutionPhone: '',
-        };
-        
-        setCurrentUser(userProfile);
-        setAvatarStyle(userProfile.avatarStyle || 'default');
+        if (session) {
+            const { user } = session;
 
-        // If this is a new sign-up, add the user to our local state management
-        if (!userExistsInState) {
-          setAllUsers(prev => [...prev, userProfile]);
-          setAllProgressData(prev => ({
-            ...prev,
-            [userProfile.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
-          }));
+            const userProfile: User = {
+                id: user.id,
+                name: user.user_metadata.fullName,
+                email: user.email,
+                role: user.user_metadata.role,
+                institutionName: user.user_metadata.institutionName,
+                class: user.user_metadata.class,
+                avatarUrl: user.user_metadata.avatar_url || `https://picsum.photos/seed/${user.user_metadata.fullName}/100/100`,
+                avatarStyle: 'default',
+                homeAddress: '',
+                institutionAddress: '',
+                institutionPhone: '',
+            };
+
+            setCurrentUser(userProfile);
+            setAvatarStyle(userProfile.avatarStyle || 'default');
+
+            // Use functional updates to prevent stale state in closure
+            setAllUsers(currentUsers => {
+                const userExists = currentUsers.some(u => u.id === userProfile.id);
+                if (!userExists) {
+                    setAllProgressData(prev => ({
+                        ...prev,
+                        [userProfile.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
+                    }));
+                    setChatRooms(prevRooms => prevRooms.map(room => {
+                        if (room.id === 'global-chat') {
+                            return { ...room, memberIds: [...room.memberIds, userProfile.id] };
+                        }
+                        return room;
+                    }));
+                    return [...currentUsers, userProfile];
+                }
+                return currentUsers;
+            });
+        } else {
+            setCurrentUser(null);
+            setSelectedModule(null);
+            setSelectedQuiz(null);
+            setLastQuizResult(null);
+            setCurrentPage('dashboard');
+            setDashboardView('dashboard');
+            sessionStorage.removeItem('lastQuizResult');
         }
-
-      } else {
-        // User is logged out
-        setCurrentUser(null);
-        setSelectedModule(null);
-        setSelectedQuiz(null);
-        setLastQuizResult(null);
-        setCurrentPage('dashboard');
-        setDashboardView('dashboard');
-        sessionStorage.removeItem('lastQuizResult'); // Keep some session data if needed, but clear user-specific
-      }
     });
 
     return () => subscription.unsubscribe();
-  }, [allUsers]); 
+  }, []); // Empty dependency array is correct to set up the listener only once.
   
   // Automatic Time Tracking for Student/User Progress
   useEffect(() => {
@@ -287,6 +388,31 @@ const App: React.FC = () => {
       const storedUsersJSON = localStorage.getItem('allUsers');
       const storedUsers = storedUsersJSON ? JSON.parse(storedUsersJSON) : [];
       setAllUsers(storedUsers);
+      
+      // Initialize Chat Rooms
+      const storedChatRoomsJSON = localStorage.getItem('chatRooms');
+      let storedChatRooms = storedChatRoomsJSON ? JSON.parse(storedChatRoomsJSON) : [];
+      let globalChatExists = storedChatRooms.some((room: ChatRoom) => room.id === 'global-chat');
+      if (!globalChatExists) {
+          const globalChat: ChatRoom = {
+              id: 'global-chat',
+              name: 'Global Chat',
+              type: 'global',
+              memberIds: storedUsers.map((u: User) => u.id),
+          };
+          storedChatRooms.push(globalChat);
+      }
+      setChatRooms(storedChatRooms);
+      
+      const storedChatMessagesJSON = localStorage.getItem('chatMessages');
+      setChatMessages(storedChatMessagesJSON ? JSON.parse(storedChatMessagesJSON) : []);
+      
+      const storedChatInvitesJSON = localStorage.getItem('chatInvitations');
+      setChatInvitations(storedChatInvitesJSON ? JSON.parse(storedChatInvitesJSON) : []);
+      
+      const storedNoticesJSON = localStorage.getItem('globalNotices');
+      setGlobalNotices(storedNoticesJSON ? JSON.parse(storedNoticesJSON) : []);
+
 
       const storedProgressJSON = localStorage.getItem('allProgressData');
       const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
@@ -333,17 +459,30 @@ const App: React.FC = () => {
     }
   }, []); // Empty dependency array means this runs only once
 
-  // Save persistent data to localStorage when it changes
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('learningModules', JSON.stringify(modules)); }, [modules, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('learningQuizzes', JSON.stringify(quizzes)); }, [quizzes, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('simulationGuides', JSON.stringify(simulationGuides)); }, [simulationGuides, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('latestNews', JSON.stringify(latestNews)); }, [latestNews, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('previousNews', JSON.stringify(previousNews)); }, [previousNews, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('allUsers', JSON.stringify(allUsers)); }, [allUsers, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('allProgressData', JSON.stringify(allProgressData)); }, [allProgressData, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('certificationStatus', JSON.stringify(certificationStatus)); }, [certificationStatus, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('storedFloorplans', JSON.stringify(storedFloorplans)); }, [storedFloorplans, isDataLoaded]);
-  useEffect(() => { if (isDataLoaded) localStorage.setItem('aiNotes', JSON.stringify(aiNotes)); }, [aiNotes, isDataLoaded]);
+  // Save persistent data to localStorage when it changes (consolidated for performance)
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('learningModules', JSON.stringify(modules));
+      localStorage.setItem('learningQuizzes', JSON.stringify(quizzes));
+      localStorage.setItem('simulationGuides', JSON.stringify(simulationGuides));
+      localStorage.setItem('latestNews', JSON.stringify(latestNews));
+      localStorage.setItem('previousNews', JSON.stringify(previousNews));
+      localStorage.setItem('allUsers', JSON.stringify(allUsers));
+      localStorage.setItem('allProgressData', JSON.stringify(allProgressData));
+      localStorage.setItem('certificationStatus', JSON.stringify(certificationStatus));
+      localStorage.setItem('storedFloorplans', JSON.stringify(storedFloorplans));
+      localStorage.setItem('aiNotes', JSON.stringify(aiNotes));
+      localStorage.setItem('chatRooms', JSON.stringify(chatRooms));
+      localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+      localStorage.setItem('chatInvitations', JSON.stringify(chatInvitations));
+      localStorage.setItem('globalNotices', JSON.stringify(globalNotices));
+    }
+  }, [
+      isDataLoaded, modules, quizzes, simulationGuides, latestNews, previousNews,
+      allUsers, allProgressData, certificationStatus, storedFloorplans, aiNotes,
+      chatRooms, chatMessages, chatInvitations, globalNotices
+  ]);
+
 
   // Save session data to sessionStorage when relevant state changes
   useEffect(() => {
@@ -542,6 +681,12 @@ const App: React.FC = () => {
       } else if (currentPage === 'notebook') {
         setAvatarMood('neutral');
         setAvatarMessage(translate('Welcome to your AI Notebook! Organize your thoughts, manage tasks, and let me help you with summaries or ideas.'));
+      } else if (currentPage === 'chat') {
+        setAvatarMood('happy');
+        setAvatarMessage(translate('Connect with peers and educators. Share knowledge and stay prepared together!'));
+      } else if (currentPage === 'iot') {
+        setAvatarMood('neutral');
+        setAvatarMessage(translate('This is the IoT Alert dashboard. You can monitor the status of your connected devices here.'));
       } else {
          switch (dashboardView) {
             case 'dashboard':
@@ -974,6 +1119,10 @@ const App: React.FC = () => {
     sessionStorage.setItem('alertsDismissed', 'true');
   };
 
+  const handleDismissGlobalAlert = useCallback(() => {
+    setActiveAlert(null);
+  }, []);
+
   // --- CMS Handlers ---
   const handleSaveModule = (moduleData: Omit<LearningModule, 'id' | 'quizId' | 'hasLab' | 'progress'> & { id?: string }) => {
     if (moduleData.id) { // Editing existing module
@@ -1048,6 +1197,87 @@ const App: React.FC = () => {
     setEditingGuide({ guide: guideToEdit, forModule });
     setIsGuideEditorOpen(true);
   };
+
+  // --- Chat Handlers ---
+  const handleCreateChatRoom = useCallback((newRoom: Omit<ChatRoom, 'id'>) => {
+    setChatRooms(prev => [...prev, { ...newRoom, id: `chat-${Date.now()}` }]);
+  }, []);
+
+  const handleSendMessage = useCallback((roomId: string, text: string) => {
+      if (!currentUser) return;
+      const newMessage: ChatMessage = {
+          id: `msg-${Date.now()}`,
+          chatRoomId: roomId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatarUrl: currentUser.avatarUrl,
+          text,
+          timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, newMessage]);
+  }, [currentUser]);
+  
+  const handleSendInvitations = useCallback((roomId: string, roomName: string, inviteeIds: string[]) => {
+      if (!currentUser) return;
+      const newInvitations: ChatInvitation[] = inviteeIds.map(inviteeId => ({
+          id: `invite-${Date.now()}-${inviteeId}`,
+          roomId,
+          roomName,
+          inviterId: currentUser.id,
+          inviterName: currentUser.name,
+          inviteeId,
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+      }));
+      setChatInvitations(prev => [...prev.filter(inv => !(inv.roomId === roomId && inviteeIds.includes(inv.inviteeId))), ...newInvitations]);
+  }, [currentUser]);
+
+  const handleAcceptInvitation = useCallback((invitationId: string) => {
+      const invitation = chatInvitations.find(inv => inv.id === invitationId);
+      if (!invitation || !currentUser) return;
+
+      setChatRooms(prevRooms => prevRooms.map(room => {
+          if (room.id === invitation.roomId) {
+              return { ...room, memberIds: [...new Set([...room.memberIds, currentUser.id])] };
+          }
+          return room;
+      }));
+
+      setChatInvitations(prevInvites => prevInvites.map(inv => 
+          inv.id === invitationId ? { ...inv, status: 'accepted' } : inv
+      ));
+  }, [chatInvitations, currentUser]);
+
+  const handleDeclineInvitation = useCallback((invitationId: string) => {
+      setChatInvitations(prevInvites => prevInvites.map(inv => 
+          inv.id === invitationId ? { ...inv, status: 'declined' } : inv
+      ));
+  }, []);
+
+  const handleUpdateChatRoom = useCallback((updatedRoom: ChatRoom) => {
+      setChatRooms(prev => prev.map(room => room.id === updatedRoom.id ? updatedRoom : room));
+  }, []);
+
+  const handleDeleteChatRoom = useCallback((roomId: string) => {
+      if (window.confirm(translate('Are you sure you want to permanently delete this chat room? This action cannot be undone.'))) {
+        setChatMessages(prev => prev.filter(msg => msg.chatRoomId !== roomId));
+        setChatInvitations(prev => prev.filter(inv => inv.roomId !== roomId));
+        setChatRooms(prev => prev.filter(room => room.id !== roomId));
+      }
+  }, [translate]);
+
+  const handlePostNotice = useCallback((text: string, imageUrl?: string) => {
+      if (!currentUser || currentUser.role !== UserRole.GOVERNMENT_OFFICIAL) return;
+      const newNotice: GlobalNotice = {
+          id: `notice-${Date.now()}`,
+          text,
+          imageUrl,
+          postedById: currentUser.id,
+          postedByName: currentUser.name,
+          timestamp: new Date().toISOString(),
+      };
+      setGlobalNotices(prev => [newNotice, ...prev]);
+  }, [currentUser]);
 
 
   const profileBackText = preProfileLocation?.page === 'lab' ? translate('Back to Lab') 
@@ -1169,6 +1399,25 @@ const App: React.FC = () => {
                 onUpdateNote={handleUpdateNote}
                 onDeleteNote={handleDeleteNote}
             />;
+        case 'chat':
+            return currentUser && <ChatPage 
+                currentUser={currentUser}
+                allUsers={allUsers}
+                chatRooms={chatRooms}
+                chatMessages={chatMessages}
+                onCreateRoom={handleCreateChatRoom}
+                onSendMessage={handleSendMessage}
+                chatInvitations={chatInvitations}
+                onSendInvitations={handleSendInvitations}
+                onAcceptInvitation={handleAcceptInvitation}
+                onDeclineInvitation={handleDeclineInvitation}
+                onUpdateRoom={handleUpdateChatRoom}
+                onDeleteRoom={handleDeleteChatRoom}
+                globalNotices={globalNotices}
+                onPostNotice={handlePostNotice}
+            />;
+        case 'iot':
+            return <IoTAlertDashboard activeAlert={activeAlert} />;
         default:
             return null;
     }
@@ -1180,6 +1429,10 @@ const App: React.FC = () => {
     currentUser?.institutionAddress ||
     currentUser?.institutionName
   ) || 'India';
+  
+  if (!isDataLoaded) {
+    return <FullScreenLoader />;
+  }
 
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${theme}`}>
@@ -1219,6 +1472,9 @@ const App: React.FC = () => {
            )}
 
           <main className="flex-1 p-4 md:p-6 lg:p-8 relative">
+              {activeAlert && (
+                <GlobalAlertBanner alertType={activeAlert} onDismiss={handleDismissGlobalAlert} />
+              )}
               {isAuthenticated && isAlertsBannerVisible && currentUser && (
                 <div className="mb-6">
                     <AlertsBanner

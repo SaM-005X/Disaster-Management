@@ -5,6 +5,7 @@ import { UserRole } from '../types';
 import { ExternalLinkIcon } from './icons/ExternalLinkIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { TrashIcon } from './icons/TrashIcon';
+import { useTTS } from '../contexts/TTSContext';
 
 interface NewsCardProps {
     article: NewsArticle;
@@ -15,6 +16,7 @@ interface NewsCardProps {
 
 const NewsCard: React.FC<NewsCardProps> = ({ article, currentUser, onEdit, onDelete }) => {
     const { translate } = useTranslate();
+    const { currentlySpokenId } = useTTS();
     const isOfficial = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
 
     const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -39,7 +41,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, currentUser, onEdit, onDel
             </div>
             <div className="p-5">
                 <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase">{translate(article.source)}</p>
-                <h3 className={`text-lg font-bold text-gray-900 dark:text-white mt-1 ${isClickable ? 'group-hover:text-teal-500 dark:group-hover:text-teal-400' : ''} transition-colors`}>
+                <h3 className={`text-lg font-bold text-gray-900 dark:text-white mt-1 ${isClickable ? 'group-hover:text-teal-500 dark:group-hover:text-teal-400' : ''} transition-colors ${currentlySpokenId === `article-${article.type}-${article.id}-title` ? 'tts-highlight' : ''}`}>
                     {translate(article.title)}
                 </h3>
                  {article.isSummarizing ? (
@@ -48,7 +50,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ article, currentUser, onEdit, onDel
                         <span>{translate('Generating summary...')}</span>
                     </div>
                 ) : (
-                    <p className="text-gray-600 dark:text-gray-400 mt-2 text-sm">
+                    <p className={`text-gray-600 dark:text-gray-400 mt-2 text-sm ${currentlySpokenId === `article-${article.type}-${article.id}-summary` ? 'tts-highlight' : ''}`}>
                         {translate(article.summary)}
                     </p>
                 )}

@@ -3,6 +3,7 @@ import type { NewsArticle, User } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
 import ErrorMessage from './ErrorMessage';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 interface NewsEditModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface NewsEditModalProps {
 
 const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, type, existingArticle, currentUser }) => {
   const { translate } = useTranslate();
+  const { registerTexts, currentlySpokenId } = useTTS();
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
@@ -25,6 +27,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
   const [error, setError] = useState('');
 
   const isEditing = !!existingArticle;
+  const modalTitle = isEditing ? translate('Edit News Article') : translate('Create New News Article');
 
   useEffect(() => {
     if (isOpen) {
@@ -49,6 +52,21 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
         }
     }
   }, [isOpen, existingArticle, currentUser]);
+  
+  useEffect(() => {
+    if (isOpen) {
+        const texts: TTSText[] = [
+            { id: 'news-modal-title', text: modalTitle },
+            { id: 'news-modal-label-title', text: translate('Title') },
+            { id: 'news-modal-label-summary', text: translate('Summary') },
+            { id: 'news-modal-label-image', text: `${translate('Image URL')} (${translate('Optional')})` },
+            { id: 'news-modal-label-source', text: translate('Source') },
+            { id: 'news-modal-label-link', text: translate('Article Link') },
+        ];
+        registerTexts(texts);
+    }
+  }, [isOpen, modalTitle, translate, registerTexts]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -71,8 +89,6 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
 
   if (!isOpen) return null;
 
-  const modalTitle = isEditing ? translate('Edit News Article') : translate('Create New News Article');
-
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
@@ -84,7 +100,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
         <form onSubmit={handleSubmit}>
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 id="news-creator-title" className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 id="news-creator-title" className={`text-2xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'news-modal-title' ? 'tts-highlight' : ''}`}>
                 {modalTitle}
               </h2>
               <button
@@ -99,7 +115,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
             {error && <ErrorMessage message={error} />}
             <div className="space-y-4 mt-4">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="title" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'news-modal-label-title' ? 'tts-highlight' : ''}`}>
                   {translate('Title')}
                 </label>
                 <input
@@ -113,7 +129,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
                 />
               </div>
               <div>
-                <label htmlFor="summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="summary" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'news-modal-label-summary' ? 'tts-highlight' : ''}`}>
                   {translate('Summary')}
                 </label>
                 <textarea
@@ -127,7 +143,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
                 />
               </div>
               <div>
-                <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="imageUrl" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'news-modal-label-image' ? 'tts-highlight' : ''}`}>
                   {translate('Image URL')} ({translate('Optional')})
                 </label>
                 <input
@@ -142,7 +158,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
               </div>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <label htmlFor="source" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'news-modal-label-source' ? 'tts-highlight' : ''}`}>
                         {translate('Source')}
                         </label>
                         <input
@@ -156,7 +172,7 @@ const NewsEditModal: React.FC<NewsEditModalProps> = ({ isOpen, onClose, onSave, 
                         />
                     </div>
                     <div>
-                        <label htmlFor="link" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <label htmlFor="link" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'news-modal-label-link' ? 'tts-highlight' : ''}`}>
                         {translate('Article Link')}
                         </label>
                         <input

@@ -1,4 +1,3 @@
-// Fix: Removed `type ChatParameters` from import as it's not an exported member of '@google/genai'.
 import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse, type GenerateImagesParameters, type GenerateImagesResponse, type Chat } from '@google/genai';
 import { handleApiError } from './apiErrorHandler';
 
@@ -47,13 +46,10 @@ export async function generateImages(params: GenerateImagesParameters): Promise<
 
 /**
  * A wrapper for creating a new chat session with centralized error handling.
- * @param params - The parameters for creating the chat session.
+ * @param params - The parameters for creating the chat session, including 'model' and 'config'.
  * @returns A Chat instance.
  * @throws An error with a user-friendly message if chat creation fails.
  */
-// Fix: The type `ChatParameters` is not an exported member of '@google/genai'.
-// Using `Omit<GenerateContentParameters, 'contents'>` to accurately type the parameters for creating a chat,
-// which include 'model' and 'config' but not 'contents'.
 export function createChatSession(params: Omit<GenerateContentParameters, 'contents'>): Chat {
      if (!process.env.API_KEY) {
         throw new Error("AI Service is not configured. Missing API Key.");

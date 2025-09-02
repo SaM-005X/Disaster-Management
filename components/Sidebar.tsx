@@ -15,8 +15,10 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { GlobeIcon } from './icons/GlobeIcon';
 import { ExitIcon } from './icons/ExitIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { MessageSquareIcon } from './icons/MessageSquareIcon';
+import { BroadcastIcon } from './icons/BroadcastIcon';
 
-type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook';
+type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook' | 'chat' | 'iot';
 
 interface SidebarProps {
   currentPage: Page;
@@ -116,6 +118,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
               label={translate('Lab / Simulation')}
               isActive={currentPage === 'lab' && labView !== 'solutions'}
               onClick={() => handleNavigation('lab')}
+            />
+          </li>
+          <li>
+            <NavLink
+              icon={<MessageSquareIcon className="h-6 w-6" />}
+              label={translate('Chat')}
+              isActive={currentPage === 'chat'}
+              onClick={() => handleNavigation('chat')}
+            />
+          </li>
+          <li>
+            <NavLink
+              icon={<BroadcastIcon className="h-6 w-6" />}
+              label={translate('IoT Alert Systems')}
+              isActive={currentPage === 'iot'}
+              onClick={() => handleNavigation('iot')}
             />
           </li>
           <li>

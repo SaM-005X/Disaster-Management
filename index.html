@@ -37,6 +37,14 @@
         color: #1f2937; /* gray-800 */
         box-shadow: 0 0 0 2px #fde047;
       }
+      @keyframes pulse-fast {
+        50% {
+            opacity: .6;
+        }
+      }
+      .animate-pulse-fast {
+          animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
     </style>
     <script>
       // On page load or when changing themes, best to add inline in `head` to avoid FOUC

@@ -13,6 +13,10 @@ import * as aiNotebookService from '../services/aiNotebookService';
 import ErrorMessage from './ErrorMessage';
 import { XIcon } from './icons/XIcon';
 import { PencilIcon } from './icons/PencilIcon';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
+import { PlayIcon } from './icons/PlayIcon';
+import { PauseIcon } from './icons/PauseIcon';
+import { StopIcon } from './icons/StopIcon';
 
 type AINoteFilter = 'all' | 'notes' | 'tasks';
 
@@ -36,6 +40,38 @@ const AINotebook: React.FC<AINotebookProps> = ({ notes, onAddNote, onUpdateNote,
     const [aiError, setAiError] = useState<string | null>(null);
     
     const isAddingRef = useRef(false);
+
+    const { 
+        registerTexts, 
+        toggleReadAloud, 
+        stopReadAloud, 
+        isPlaying, 
+        isPaused, 
+        hasQueue, 
+        currentlySpokenId 
+    } = useTTS();
+
+    useEffect(() => {
+        if (selectedNote && !isEditing) {
+            const textsToRegister: TTSText[] = [];
+            if (selectedNote.title) {
+                textsToRegister.push({ id: `note-title-${selectedNote.id}`, text: translate(selectedNote.title) });
+            }
+            if (selectedNote.content) {
+                textsToRegister.push({ id: `note-content-${selectedNote.id}`, text: translate(selectedNote.content) });
+            }
+            registerTexts(textsToRegister);
+        } else {
+            registerTexts([]); // Clear queue when no note is selected or when editing
+        }
+        
+        // Cleanup function to stop speech when component unmounts or selection changes
+        return () => {
+            if (isPlaying) {
+                stopReadAloud();
+            }
+        };
+    }, [selectedNote, isEditing, registerTexts, translate, stopReadAloud, isPlaying]);
 
     useEffect(() => {
         // If the selected note is deleted from the main list, deselect it.
@@ -239,7 +275,7 @@ const AINotebook: React.FC<AINotebookProps> = ({ notes, onAddNote, onUpdateNote,
                     <div className="flex flex-col h-full">
                         <div className="flex-shrink-0 flex justify-between items-start gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                            <div>
-                                <h1 className={`text-4xl font-extrabold text-gray-900 dark:text-white ${selectedNote.isCompleted ? 'line-through' : ''}`}>{selectedNote.title}</h1>
+                                <h1 id={`note-title-${selectedNote.id}`} className={`text-4xl font-extrabold text-gray-900 dark:text-white ${selectedNote.isCompleted ? 'line-through' : ''} ${currentlySpokenId === `note-title-${selectedNote.id}` ? 'tts-highlight' : ''}`}>{selectedNote.title}</h1>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{translate('Last updated')}: {formatDateTime(selectedNote.updatedAt)}</p>
                            </div>
                            <div className="flex gap-2 flex-shrink-0">
@@ -247,9 +283,33 @@ const AINotebook: React.FC<AINotebookProps> = ({ notes, onAddNote, onUpdateNote,
                                 <button onClick={() => handleDelete(selectedNote.id)} className="p-2 bg-red-100 text-red-700 rounded-full hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"><TrashIcon className="h-5 w-5"/></button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto max-w-none pr-2">
-                           <p className="whitespace-pre-wrap text-lg leading-relaxed text-gray-800 dark:text-gray-200">{selectedNote.content || <span className="text-gray-400 italic">{translate('This note is empty.')}</span>}</p>
+
+                        {/* TTS Controls */}
+                        <div className="flex-shrink-0 mb-4 p-2 bg-gray-100 dark:bg-gray-700/50 rounded-full flex items-center justify-center gap-2">
+                            <span className="text-sm font-semibold mr-2">{translate('Read Aloud')}:</span>
+                            <button
+                                onClick={toggleReadAloud}
+                                disabled={!hasQueue}
+                                className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+                                aria-label={isPlaying && !isPaused ? translate('Pause reading') : translate('Read note aloud')}
+                            >
+                                {isPlaying && !isPaused ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+                            </button>
+                            {isPlaying && (
+                                <button
+                                    onClick={stopReadAloud}
+                                    className="p-2 rounded-full text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50"
+                                    aria-label={translate('Stop reading')}
+                                >
+                                    <StopIcon className="h-5 w-5" />
+                                </button>
+                            )}
                         </div>
+                        
+                        <div className="flex-1 overflow-y-auto max-w-none pr-2">
+                           <p id={`note-content-${selectedNote.id}`} className={`whitespace-pre-wrap text-lg leading-relaxed text-gray-800 dark:text-gray-200 ${currentlySpokenId === `note-content-${selectedNote.id}` ? 'tts-highlight' : ''}`}>{selectedNote.content || <span className="text-gray-400 italic">{translate('This note is empty.')}</span>}</p>
+                        </div>
+
                         <div className="flex-shrink-0 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                             <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">{translate('AI Actions')}</h3>
                             {aiError && <ErrorMessage message={aiError} />}

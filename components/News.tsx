@@ -100,9 +100,17 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
         const textsToRead: TTSText[] = [{ id: 'news-header', text: headerText }, { id: 'news-subheader', text: subHeaderText }];
         if (displayLatestNews.length > 0) {
             textsToRead.push({ id: 'latest-findings-header', text: translate('Latest Findings') });
+            displayLatestNews.forEach(article => {
+                textsToRead.push({ id: `article-${article.type}-${article.id}-title`, text: translate(article.title) });
+                textsToRead.push({ id: `article-${article.type}-${article.id}-summary`, text: translate(article.summary) });
+            });
         }
         if (displayPreviousNews.length > 0) {
             textsToRead.push({ id: 'previous-findings-header', text: translate('Previous Findings') });
+            displayPreviousNews.forEach(article => {
+                textsToRead.push({ id: `article-${article.type}-${article.id}-title`, text: translate(article.title) });
+                textsToRead.push({ id: `article-${article.type}-${article.id}-summary`, text: translate(article.summary) });
+            });
         }
         registerTexts(textsToRead);
     }, [displayLatestNews, displayPreviousNews, headerText, subHeaderText, translate, registerTexts]);

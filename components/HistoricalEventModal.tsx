@@ -3,6 +3,7 @@ import type { HistoricalDisaster, HazardType } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { XIcon } from './icons/XIcon';
 import { HazardType as HazardTypeEnum } from '../types';
+import { useTTS, type TTSText } from '../contexts/TTSContext';
 
 interface HistoricalEventModalProps {
   event: HistoricalDisaster | null;
@@ -12,6 +13,7 @@ interface HistoricalEventModalProps {
 
 const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSave, onClose }) => {
   const { translate } = useTranslate();
+  const { registerTexts, currentlySpokenId } = useTTS();
   const [formData, setFormData] = useState({
     eventName: '',
     date: '',
@@ -23,6 +25,7 @@ const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSa
   });
 
   const isEditing = !!event;
+  const modalTitle = isEditing ? translate('Edit Historical Event') : translate('Add New Event');
 
   useEffect(() => {
     if (event) {
@@ -37,6 +40,21 @@ const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSa
       });
     }
   }, [event]);
+  
+  useEffect(() => {
+    const texts: TTSText[] = [
+        { id: 'event-modal-title', text: modalTitle },
+        { id: 'event-modal-label-name', text: translate('Event Name') },
+        { id: 'event-modal-label-date', text: translate('Date') },
+        { id: 'event-modal-label-type', text: translate('Hazard Type') },
+        { id: 'event-modal-label-location', text: translate('Location') },
+        { id: 'event-modal-label-fatalities', text: translate('Fatalities') },
+        { id: 'event-modal-label-impact', text: translate('Economic Impact (USD)') },
+        { id: 'event-modal-label-summary', text: translate('Summary') },
+    ];
+    registerTexts(texts);
+  }, [modalTitle, translate, registerTexts]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -59,8 +77,8 @@ const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSa
         <form onSubmit={handleSubmit}>
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 id="event-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white">
-                {isEditing ? translate('Edit Historical Event') : translate('Add New Event')}
+              <h2 id="event-modal-title" className={`text-2xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'event-modal-title' ? 'tts-highlight' : ''}`}>
+                {modalTitle}
               </h2>
               <button
                 type="button"
@@ -73,17 +91,17 @@ const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSa
             </div>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                <div>
-                <label htmlFor="eventName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Event Name')}</label>
+                <label htmlFor="eventName" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-name' ? 'tts-highlight' : ''}`}>{translate('Event Name')}</label>
                 <input type="text" name="eventName" id="eventName" value={formData.eventName} onChange={handleChange} required className="mt-1 block w-full input-style" />
               </div>
 
                <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Date')}</label>
+                    <label htmlFor="date" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-date' ? 'tts-highlight' : ''}`}>{translate('Date')}</label>
                     <input type="text" name="date" id="date" value={formData.date} onChange={handleChange} required placeholder="e.g., August 2018" className="mt-1 block w-full input-style" />
                 </div>
                  <div>
-                    <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Hazard Type')}</label>
+                    <label htmlFor="type" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-type' ? 'tts-highlight' : ''}`}>{translate('Hazard Type')}</label>
                     <select name="type" id="type" value={formData.type} onChange={handleChange} required className="mt-1 block w-full input-style">
                         {Object.values(HazardTypeEnum).map(type => (
                             <option key={type} value={type}>{translate(type)}</option>
@@ -93,23 +111,23 @@ const HistoricalEventModal: React.FC<HistoricalEventModalProps> = ({ event, onSa
               </div>
               
                <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Location')}</label>
+                <label htmlFor="location" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-location' ? 'tts-highlight' : ''}`}>{translate('Location')}</label>
                 <input type="text" name="location" id="location" value={formData.location} onChange={handleChange} required className="mt-1 block w-full input-style" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                  <div>
-                    <label htmlFor="fatalities" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Fatalities')}</label>
+                    <label htmlFor="fatalities" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-fatalities' ? 'tts-highlight' : ''}`}>{translate('Fatalities')}</label>
                     <input type="number" name="fatalities" id="fatalities" value={formData.fatalities} onChange={handleChange} required min="0" className="mt-1 block w-full input-style" />
                 </div>
                 <div>
-                    <label htmlFor="economicImpactUSD" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Economic Impact (USD)')}</label>
+                    <label htmlFor="economicImpactUSD" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-impact' ? 'tts-highlight' : ''}`}>{translate('Economic Impact (USD)')}</label>
                     <input type="text" name="economicImpactUSD" id="economicImpactUSD" value={formData.economicImpactUSD} onChange={handleChange} required placeholder="e.g., 1.5 Billion" className="mt-1 block w-full input-style" />
                 </div>
               </div>
               
               <div>
-                <label htmlFor="summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{translate('Summary')}</label>
+                <label htmlFor="summary" className={`block text-sm font-medium text-gray-700 dark:text-gray-300 ${currentlySpokenId === 'event-modal-label-summary' ? 'tts-highlight' : ''}`}>{translate('Summary')}</label>
                 <textarea name="summary" id="summary" value={formData.summary} onChange={handleChange} required rows={3} className="mt-1 block w-full input-style" />
               </div>
 
