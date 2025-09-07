@@ -1,8 +1,8 @@
 // supabase/functions/iot-alert/index.ts
 
-// Use the recommended `npm:` specifier for Supabase Edge Functions types.
-// FIX: Corrected the path for Supabase Edge Functions type definitions to use 'dist' instead of 'src'.
-/// <reference types="https://esm.sh/@supabase/functions-js/dist/edge-functions.d.ts" />
+// Supabase Edge Functions types.
+// FIX: Corrected the types reference to use the recommended npm specifier.
+/// <reference types="npm:@supabase/functions-js@2" />
 
 // FIX: Declare the Deno global to satisfy TypeScript in non-Deno environments (like local editors).
 declare global {

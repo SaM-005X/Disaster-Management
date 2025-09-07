@@ -4,11 +4,99 @@ import { generateContent } from './aiService';
 
 const newsCache = new Map<string, NewsArticle[]>();
 
+const MOCK_LATEST_NEWS: NewsArticle[] = [
+  {
+    id: 'mock-latest-1',
+    title: 'Severe Cyclonic Storm Approaches East Coast',
+    summary: 'A powerful cyclonic storm is expected to make landfall in the next 48 hours, with authorities issuing high alerts for coastal regions.',
+    imageUrl: 'https://images.unsplash.com/photo-1561079545-a72c1c7511a7?q=80&w=800',
+    source: 'National Weather Service',
+    link: '#',
+    type: 'latest',
+  },
+  {
+    id: 'mock-latest-2',
+    title: 'Flash Floods Inundate Northern Plains',
+    summary: 'Unexpectedly heavy monsoon rains have led to severe flash flooding, displacing thousands and disrupting transport networks.',
+    imageUrl: 'https://images.unsplash.com/photo-1581723522203-b82b99216335?q=80&w=800',
+    source: 'Associated Press',
+    link: '#',
+    type: 'latest',
+  },
+  {
+    id: 'mock-latest-3',
+    title: 'Heatwave Advisory Issued for Central Regions',
+    summary: 'A prolonged period of extreme heat is forecast, with temperatures expected to exceed 45°C, posing health risks.',
+    imageUrl: 'https://images.unsplash.com/photo-1504370805625-d32c54b16100?q=80&w=800',
+    source: 'Reuters',
+    link: '#',
+    type: 'latest',
+  },
+  {
+    id: 'mock-latest-4',
+    title: 'Minor Earthquake Rattles Himalayan Foothills',
+    summary: 'A moderate earthquake of magnitude 4.8 was recorded, causing minor tremors but no significant damage has been reported.',
+    imageUrl: 'https://images.unsplash.com/photo-1590412015525-26335446a89c?q=80&w=800',
+    source: 'Geological Survey',
+    link: '#',
+    type: 'latest',
+  }
+];
+
+const MOCK_PREVIOUS_NEWS: NewsArticle[] = [
+  {
+    id: 'mock-prev-1',
+    title: 'Retrospective: 2018 Kerala Floods',
+    summary: 'A look back at the devastating floods in Kerala caused by extreme monsoon rainfall, highlighting lessons learned in disaster response.',
+    imageUrl: 'https://images.unsplash.com/photo-1547823334-2a62a69b7245?q=80&w=800',
+    source: 'Historical Archives',
+    link: '#',
+    type: 'previous',
+  },
+  {
+    id: 'mock-prev-2',
+    title: 'The Great Bhuj Earthquake of 2001',
+    summary: 'Analyzing the catastrophic earthquake that struck Gujarat, leading to significant changes in India\'s seismic safety codes.',
+    imageUrl: 'https://images.unsplash.com/photo-1619451998-3335824e4a2e?q=80&w=800',
+    source: 'The Times',
+    link: '#',
+    type: 'previous',
+  },
+  {
+    id: 'mock-prev-3',
+    title: 'Impact of the 1999 Odisha Super Cyclone',
+    summary: 'Remembering one of the most intense tropical cyclones in the North Indian Ocean and its long-term impact on coastal communities.',
+    imageUrl: 'https://images.unsplash.com/photo-1603888399589-56839a8f4c28?q=80&w=800',
+    source: 'Disaster Chronicle',
+    link: '#',
+    type: 'previous',
+  },
+  {
+    id: 'mock-prev-4',
+    title: 'Learning from the 2004 Indian Ocean Tsunami',
+    summary: 'A review of the event that reshaped disaster management and early warning systems across the entire region.',
+    imageUrl: 'https://images.unsplash.com/photo-1599385552344-484175376131?q=80&w=800',
+    source: 'Global Watch',
+    link: '#',
+    type: 'previous',
+  }
+];
+
 export async function fetchNews(type: 'latest' | 'previous'): Promise<NewsArticle[]> {
   const cacheKey = `news-${type}`;
   if (newsCache.has(cacheKey)) {
     return newsCache.get(cacheKey) || [];
   }
+
+  // --- START OF GUARD FOR MISSING API KEY ---
+  if (!process.env.API_KEY) {
+    console.warn("API_KEY is not configured. Returning mock news data.");
+    const mockData = type === 'latest' ? MOCK_LATEST_NEWS : MOCK_PREVIOUS_NEWS;
+    newsCache.set(cacheKey, mockData);
+    return mockData;
+  }
+  // --- END OF GUARD FOR MISSING API KEY ---
+
 
   // The 'latest' news fetching remains unchanged as it's for recent, AI-generated content.
   if (type === 'latest') {

@@ -348,116 +348,115 @@ const App: React.FC = () => {
   // --- STATE PERSISTENCE & INITIALIZATION ---
   // Load state from storage on initial mount
   useEffect(() => {
-    try {
-      // Content Management Data from localStorage
-      const storedModulesJSON = localStorage.getItem('learningModules');
-      setModules(storedModulesJSON ? JSON.parse(storedModulesJSON) : INITIAL_MODULES);
+    const loadInitialData = async () => {
+        try {
+            // Content Management Data from localStorage
+            const storedModulesJSON = localStorage.getItem('learningModules');
+            setModules(storedModulesJSON ? JSON.parse(storedModulesJSON) : INITIAL_MODULES);
 
-      const storedQuizzesJSON = localStorage.getItem('learningQuizzes');
-      setQuizzes(storedQuizzesJSON ? JSON.parse(storedQuizzesJSON) : INITIAL_QUIZZES);
-      
-      const storedGuidesJSON = localStorage.getItem('simulationGuides');
-      setSimulationGuides(storedGuidesJSON ? JSON.parse(storedGuidesJSON) : {});
-      
-      const storedLatestNews = localStorage.getItem('latestNews');
-      const storedPreviousNews = localStorage.getItem('previousNews');
+            const storedQuizzesJSON = localStorage.getItem('learningQuizzes');
+            setQuizzes(storedQuizzesJSON ? JSON.parse(storedQuizzesJSON) : INITIAL_QUIZZES);
 
-      if (storedLatestNews && storedPreviousNews) {
-          setLatestNews(JSON.parse(storedLatestNews));
-          setPreviousNews(JSON.parse(storedPreviousNews));
-      } else {
-          // Initial data seed for news
-          const seedNews = async () => {
-              try {
-                  const [latest, previous] = await Promise.all([
-                      fetchNews('latest'),
-                      fetchNews('previous')
-                  ]);
-                  const latestWithIds = latest.map((a, i) => ({ ...a, id: `latest-seed-${Date.now()}-${i}`, type: 'latest' as const }));
-                  const previousWithIds = previous.map((a, i) => ({ ...a, id: `previous-seed-${Date.now()}-${i}`, type: 'previous' as const }));
-                  setLatestNews(latestWithIds);
-                  setPreviousNews(previousWithIds);
-              } catch (err) {
-                  console.error("Failed to seed news data:", err);
-              }
-          };
-          seedNews();
-      }
+            const storedGuidesJSON = localStorage.getItem('simulationGuides');
+            setSimulationGuides(storedGuidesJSON ? JSON.parse(storedGuidesJSON) : {});
 
-      // Persistent data from localStorage
-      const storedUsersJSON = localStorage.getItem('allUsers');
-      const storedUsers = storedUsersJSON ? JSON.parse(storedUsersJSON) : [];
-      setAllUsers(storedUsers);
-      
-      // Initialize Chat Rooms
-      const storedChatRoomsJSON = localStorage.getItem('chatRooms');
-      let storedChatRooms = storedChatRoomsJSON ? JSON.parse(storedChatRoomsJSON) : [];
-      let globalChatExists = storedChatRooms.some((room: ChatRoom) => room.id === 'global-chat');
-      if (!globalChatExists) {
-          const globalChat: ChatRoom = {
-              id: 'global-chat',
-              name: 'Global Chat',
-              type: 'global',
-              memberIds: storedUsers.map((u: User) => u.id),
-          };
-          storedChatRooms.push(globalChat);
-      }
-      setChatRooms(storedChatRooms);
-      
-      const storedChatMessagesJSON = localStorage.getItem('chatMessages');
-      setChatMessages(storedChatMessagesJSON ? JSON.parse(storedChatMessagesJSON) : []);
-      
-      const storedChatInvitesJSON = localStorage.getItem('chatInvitations');
-      setChatInvitations(storedChatInvitesJSON ? JSON.parse(storedChatInvitesJSON) : []);
-      
-      const storedNoticesJSON = localStorage.getItem('globalNotices');
-      setGlobalNotices(storedNoticesJSON ? JSON.parse(storedNoticesJSON) : []);
+            const storedLatestNews = localStorage.getItem('latestNews');
+            const storedPreviousNews = localStorage.getItem('previousNews');
 
+            if (storedLatestNews && storedPreviousNews) {
+                setLatestNews(JSON.parse(storedLatestNews));
+                setPreviousNews(JSON.parse(storedPreviousNews));
+            } else {
+                // Initial data seed for news
+                try {
+                    const [latest, previous] = await Promise.all([
+                        fetchNews('latest'),
+                        fetchNews('previous')
+                    ]);
+                    const latestWithIds = latest.map((a, i) => ({ ...a, id: `latest-seed-${Date.now()}-${i}`, type: 'latest' as const }));
+                    const previousWithIds = previous.map((a, i) => ({ ...a, id: `previous-seed-${Date.now()}-${i}`, type: 'previous' as const }));
+                    setLatestNews(latestWithIds);
+                    setPreviousNews(previousWithIds);
+                } catch (err) {
+                    console.error("Failed to seed news data:", err);
+                }
+            }
 
-      const storedProgressJSON = localStorage.getItem('allProgressData');
-      const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
-      setAllProgressData(storedProgress);
+            // Persistent data from localStorage
+            const storedUsersJSON = localStorage.getItem('allUsers');
+            const storedUsers = storedUsersJSON ? JSON.parse(storedUsersJSON) : [];
+            setAllUsers(storedUsers);
 
-      const storedCertStatusJSON = localStorage.getItem('certificationStatus');
-      const storedCertStatus = storedCertStatusJSON ? JSON.parse(storedCertStatusJSON) : {};
-      setCertificationStatus(storedCertStatus);
-      
-      const storedPlansJSON = localStorage.getItem('storedFloorplans');
-      const storedPlans = storedPlansJSON ? JSON.parse(storedPlansJSON) : [];
-      setStoredFloorplans(storedPlans);
-      
-      const storedAiNotesJSON = localStorage.getItem('aiNotes');
-      const storedAiNotes = storedAiNotesJSON ? JSON.parse(storedAiNotesJSON) : [];
-      setAiNotes(storedAiNotes);
+            // Initialize Chat Rooms
+            const storedChatRoomsJSON = localStorage.getItem('chatRooms');
+            let storedChatRooms = storedChatRoomsJSON ? JSON.parse(storedChatRoomsJSON) : [];
+            let globalChatExists = storedChatRooms.some((room: ChatRoom) => room.id === 'global-chat');
+            if (!globalChatExists) {
+                const globalChat: ChatRoom = {
+                    id: 'global-chat',
+                    name: 'Global Chat',
+                    type: 'global',
+                    memberIds: storedUsers.map((u: User) => u.id),
+                };
+                storedChatRooms.push(globalChat);
+            }
+            setChatRooms(storedChatRooms);
 
-      // Restore non-user navigation and content state from session
-      const storedPage = sessionStorage.getItem('currentPage');
-      if (storedPage) setCurrentPage(JSON.parse(storedPage));
-      
-      const storedDashboardView = sessionStorage.getItem('dashboardView');
-      if (storedDashboardView) setDashboardView(JSON.parse(storedDashboardView));
+            const storedChatMessagesJSON = localStorage.getItem('chatMessages');
+            setChatMessages(storedChatMessagesJSON ? JSON.parse(storedChatMessagesJSON) : []);
 
-      const storedLabView = sessionStorage.getItem('labView');
-      if (storedLabView) setLabView(JSON.parse(storedLabView));
-      
-      // Load module & quiz from localStorage for persistence
-      const storedSelectedModule = localStorage.getItem('selectedModule');
-      if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
-      
-      const storedSelectedQuiz = localStorage.getItem('selectedQuiz');
-      if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
+            const storedChatInvitesJSON = localStorage.getItem('chatInvitations');
+            setChatInvitations(storedChatInvitesJSON ? JSON.parse(storedChatInvitesJSON) : []);
 
-      const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
-      if (storedLastQuizResult) setLastQuizResult(JSON.parse(storedLastQuizResult));
-      
-    } catch (error) {
-      console.error("Failed to load state from storage:", error);
-      localStorage.clear();
-      sessionStorage.clear();
-    } finally {
-      setIsDataLoaded(true);
-    }
-  }, []); // Empty dependency array means this runs only once
+            const storedNoticesJSON = localStorage.getItem('globalNotices');
+            setGlobalNotices(storedNoticesJSON ? JSON.parse(storedNoticesJSON) : []);
+
+            const storedProgressJSON = localStorage.getItem('allProgressData');
+            const storedProgress = storedProgressJSON ? JSON.parse(storedProgressJSON) : {};
+            setAllProgressData(storedProgress);
+
+            const storedCertStatusJSON = localStorage.getItem('certificationStatus');
+            const storedCertStatus = storedCertStatusJSON ? JSON.parse(storedCertStatusJSON) : {};
+            setCertificationStatus(storedCertStatus);
+
+            const storedPlansJSON = localStorage.getItem('storedFloorplans');
+            const storedPlans = storedPlansJSON ? JSON.parse(storedPlansJSON) : [];
+            setStoredFloorplans(storedPlans);
+
+            const storedAiNotesJSON = localStorage.getItem('aiNotes');
+            const storedAiNotes = storedAiNotesJSON ? JSON.parse(storedAiNotesJSON) : [];
+            setAiNotes(storedAiNotes);
+
+            // Restore non-user navigation and content state from session
+            const storedPage = sessionStorage.getItem('currentPage');
+            if (storedPage) setCurrentPage(JSON.parse(storedPage));
+
+            const storedDashboardView = sessionStorage.getItem('dashboardView');
+            if (storedDashboardView) setDashboardView(JSON.parse(storedDashboardView));
+
+            const storedLabView = sessionStorage.getItem('labView');
+            if (storedLabView) setLabView(JSON.parse(storedLabView));
+
+            // Load module & quiz from localStorage for persistence
+            const storedSelectedModule = localStorage.getItem('selectedModule');
+            if (storedSelectedModule) setSelectedModule(JSON.parse(storedSelectedModule));
+
+            const storedSelectedQuiz = localStorage.getItem('selectedQuiz');
+            if (storedSelectedQuiz) setSelectedQuiz(JSON.parse(storedSelectedQuiz));
+
+            const storedLastQuizResult = sessionStorage.getItem('lastQuizResult');
+            if (storedLastQuizResult) setLastQuizResult(JSON.parse(storedLastQuizResult));
+
+        } catch (error) {
+            console.error("Failed to load state from storage:", error);
+            localStorage.clear();
+            sessionStorage.clear();
+        } finally {
+            setIsDataLoaded(true);
+        }
+    };
+    loadInitialData();
+}, []); // Empty dependency array means this runs only once
 
   // Save persistent data to localStorage when it changes (consolidated for performance)
   useEffect(() => {
