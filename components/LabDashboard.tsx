@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import type { LearningModule, LabScore, User, Quiz } from '../types';
 import { UserRole } from '../types';
@@ -17,9 +18,10 @@ interface LabDashboardProps {
   onViewFinalCertificate: () => void;
   onOpenQuizEditor: (forModule: LearningModule) => void;
   onDisableLab: (moduleId: string) => void;
+  isOnline: boolean;
 }
 
-const LabDashboard: React.FC<LabDashboardProps> = ({ user, modules, labScores, onStartSimulation, onViewFinalCertificate, onOpenQuizEditor, onDisableLab }) => {
+const LabDashboard: React.FC<LabDashboardProps> = ({ user, modules, labScores, onStartSimulation, onViewFinalCertificate, onOpenQuizEditor, onDisableLab, isOnline }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
   const isOfficial = user.role === UserRole.GOVERNMENT_OFFICIAL;
@@ -136,6 +138,7 @@ const LabDashboard: React.FC<LabDashboardProps> = ({ user, modules, labScores, o
                 currentUser={user}
                 onOpenQuizEditor={onOpenQuizEditor}
                 onDisableLab={onDisableLab}
+                isOnline={isOnline}
             />
             ))}
         </div>
@@ -157,7 +160,9 @@ const LabDashboard: React.FC<LabDashboardProps> = ({ user, modules, labScores, o
                         </div>
                         <button
                             onClick={() => onOpenQuizEditor(module)}
-                            className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-full hover:bg-teal-700 transition-colors"
+                            disabled={!isOnline}
+                            title={!isOnline ? translate('This feature is unavailable offline.') : ''}
+                            className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-full hover:bg-teal-700 transition-colors disabled:opacity-50"
                         >
                             <PlusCircleIcon className="h-5 w-5" />
                             <span>{translate('Create Lab')}</span>

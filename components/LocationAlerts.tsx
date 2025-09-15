@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { fetchRealTimeAlerts } from '../services/alertService';
 import type { Alert, AlertSeverity } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
@@ -8,7 +7,8 @@ import { EyeIcon } from './icons/EyeIcon';
 import { InfoIcon } from './icons/InfoIcon';
 
 interface LocationAlertsProps {
-  location: string;
+  alerts: Alert[] | null;
+  isLoading: boolean;
 }
 
 const getAlertStyles = (severity: AlertSeverity): { bg: string; icon: React.ReactNode } => {
@@ -36,31 +36,12 @@ const getAlertStyles = (severity: AlertSeverity): { bg: string; icon: React.Reac
   }
 };
 
-const LocationAlerts: React.FC<LocationAlertsProps> = ({ location }) => {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+const LocationAlerts: React.FC<LocationAlertsProps> = ({ alerts, isLoading }) => {
   const { translate } = useTranslate();
   const { registerTexts } = useTTS();
-
-  useEffect(() => {
-    const getAlerts = async () => {
-      if (!location) return;
-      try {
-        setIsLoading(true);
-        const fetchedAlerts = await fetchRealTimeAlerts(location);
-        setAlerts(fetchedAlerts);
-      } catch (error) {
-        console.error("Failed to fetch location alerts:", error);
-        setAlerts([]); // Clear alerts on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    getAlerts();
-  }, [location]);
   
   useEffect(() => {
-    if (alerts.length > 0) {
+    if (alerts && alerts.length > 0) {
         const textsToRead: TTSText[] = alerts.map((alert, index) => ({
             id: `location-alert-${index}`,
             text: `Alert: ${translate(alert.severity)}. ${translate(alert.title)}. ${translate(alert.details)}`,
@@ -77,7 +58,7 @@ const LocationAlerts: React.FC<LocationAlertsProps> = ({ location }) => {
     );
   }
 
-  if (alerts.length === 0) {
+  if (!alerts || alerts.length === 0) {
     return (
         <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/50 rounded-lg text-emerald-800 dark:text-emerald-200 text-sm font-medium text-center">
             {translate('No active weather alerts for this location.')}

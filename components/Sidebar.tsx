@@ -131,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, 
           <li>
             <NavLink
               icon={<BroadcastIcon className="h-6 w-6" />}
-              label={translate('IoT Alert Systems')}
+              label={translate('Digital Sensors')}
               isActive={currentPage === 'iot'}
               onClick={() => handleNavigation('iot')}
             />

@@ -1,6 +1,8 @@
+
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { MODULES as INITIAL_MODULES, QUIZZES as INITIAL_QUIZZES } from './constants';
-import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote, ModelSimulationGuide, NewsArticle, ChatRoom, ChatMessage, ChatInvitation, GlobalNotice } from './types';
+import { MODULES as INITIAL_MODULES, QUIZZES as INITIAL_QUIZZES, BADGES } from './constants';
+import type { LearningModule, Quiz, User, QuizScore, LabScore, StudentProgress, AvatarStyle, Institution, Resource, HistoricalDisaster, ResourceType, ResourceStatus, StoredFloorplan, AINote, ModelSimulationGuide, NewsArticle, ChatRoom, ChatMessage, ChatInvitation, GlobalNotice, Badge, SearchResult } from './types';
 import { UserRole } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -29,8 +31,6 @@ import TectonicMap from './components/TectonicMap';
 import { useTranslate } from './contexts/TranslationContext';
 import OfflineStatusToast from './components/OfflineStatusToast';
 import News from './components/News';
-import { fetchHistoricalDisasters } from './services/historicalDisasterService';
-import { fetchNews } from './services/newsService';
 import ExitPlanner from './components/ExitPlanner';
 import AINotebook from './components/AINotebook';
 import { supabase } from './services/supabaseClient';
@@ -41,13 +41,21 @@ import ChatPage from './components/ChatPage';
 import IoTAlertDashboard from './components/IoTAlertDashboard';
 import GlobalAlertBanner from './components/GlobalAlertBanner';
 import { ShieldCheckIcon } from './components/icons/ShieldCheckIcon';
+import SearchOverlay from './components/SearchOverlay';
+import { fetchHistoricalDisasters } from './services/historicalDisasterService';
 
 type Page = 'dashboard' | 'lab' | 'distress' | 'progress' | 'meteo' | 'news' | 'tectonic' | 'exit_planner' | 'notebook' | 'chat' | 'iot';
 type DashboardView = 'dashboard' | 'module' | 'quiz' | 'result' | 'profile';
 export type LabView = 'lab_dashboard' | 'simulation' | 'final_certificate' | 'solutions';
 export type Theme = 'light' | 'dark';
 export type AvatarMood = 'neutral' | 'happy' | 'thinking' | 'encouraging';
-export type AlertType = 'fire' | 'seismic';
+export type ActiveAlert = {
+  type: 'fire' | 'seismic';
+  details?: {
+    magnitude?: string;
+  };
+} | null;
+
 
 const MOCK_RESOURCES: Resource[] = [
   { id: 'res-1', type: 'Medical Kits' as ResourceType, location: 'New Delhi', status: 'Available' as ResourceStatus, quantity: 500, lastUpdated: new Date().toISOString() },
@@ -115,9 +123,15 @@ const App: React.FC = () => {
   const [globalNotices, setGlobalNotices] = useState<GlobalNotice[]>([]);
 
   // IoT Alert State
-  const [activeAlert, setActiveAlert] = useState<AlertType | null>(null);
+  const [activeAlert, setActiveAlert] = useState<ActiveAlert>(null);
   const beepIntervalRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Search State
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
 
   const isAuthenticated = !!currentUser;
 
@@ -166,6 +180,55 @@ const App: React.FC = () => {
   // Hooks
   const { translate } = useTranslate();
   
+  // --- Global Search Logic ---
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearchLoading(false);
+      return;
+    }
+
+    setIsSearchLoading(true);
+    const handler = setTimeout(() => {
+      const query = searchQuery.toLowerCase();
+
+      const moduleResults: SearchResult[] = modules
+        .filter(m => m.title.toLowerCase().includes(query) || m.description.toLowerCase().includes(query))
+        .map(m => ({ id: `module-${m.id}`, type: 'module', title: m.title, description: m.description, data: m }));
+
+      const allNews = [...latestNews, ...previousNews];
+      const newsResults: SearchResult[] = allNews
+        .filter(n => n.title.toLowerCase().includes(query) || n.summary.toLowerCase().includes(query))
+        .map(n => ({ id: `news-${n.id}`, type: 'news', title: n.title, description: n.summary, data: n }));
+
+      setSearchResults([...moduleResults, ...newsResults]);
+      setIsSearchLoading(false);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(handler);
+  }, [searchQuery, modules, latestNews, previousNews]);
+
+  const handleOpenSearch = () => setIsSearchOverlayVisible(true);
+  const handleCloseSearch = () => {
+    setIsSearchOverlayVisible(false);
+    setSearchQuery('');
+  };
+  
+  const handleResultClick = (result: SearchResult) => {
+    if (result.type === 'module') {
+      handleSelectModule(result.data as LearningModule);
+    } else if (result.type === 'news') {
+      setCurrentPage('news');
+    }
+    handleCloseSearch();
+  };
+
+  const handleGoogleSearch = (query: string) => {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    handleCloseSearch();
+  };
+
   // Network Status Listener
     useEffect(() => {
         const handleOnline = () => {
@@ -188,23 +251,6 @@ const App: React.FC = () => {
             window.removeEventListener('offline', handleOffline);
         };
     }, [translate]);
-
-  // Supabase Realtime Listener for IoT Alerts
-  useEffect(() => {
-    const channel = supabase
-      .channel('alerts')
-      .on('broadcast', { event: 'new-alert' }, ({ payload }) => {
-        console.log('Received alert from IoT device:', payload);
-        if (payload && (payload.type === 'fire' || payload.type === 'seismic')) {
-          setActiveAlert(payload.type);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []); // Runs only once
 
   // Audible Alert Effect
   useEffect(() => {
@@ -265,12 +311,12 @@ const App: React.FC = () => {
 
             const userProfile: User = {
                 id: user.id,
-                name: user.user_metadata.fullName,
+                name: user.user_metadata?.fullName || user.email || 'New User',
                 email: user.email,
-                role: user.user_metadata.role,
-                institutionName: user.user_metadata.institutionName,
-                class: user.user_metadata.class,
-                avatarUrl: user.user_metadata.avatar_url || `https://picsum.photos/seed/${user.user_metadata.fullName}/100/100`,
+                role: user.user_metadata?.role || UserRole.USER,
+                institutionName: user.user_metadata?.institutionName || 'Unaffiliated',
+                class: user.user_metadata?.class || 'N/A',
+                avatarUrl: user.user_metadata?.avatar_url || `https://picsum.photos/seed/${user.user_metadata?.fullName || user.id}/100/100`,
                 avatarStyle: 'default',
                 homeAddress: '',
                 institutionAddress: '',
@@ -286,7 +332,7 @@ const App: React.FC = () => {
                 if (!userExists) {
                     setAllProgressData(prev => ({
                         ...prev,
-                        [userProfile.id]: { quizScores: {}, labScores: {}, timeSpent: 0 }
+                        [userProfile.id]: { quizScores: {}, labScores: {}, timeSpent: 0, points: 0, badges: [] }
                     }));
                     setChatRooms(prevRooms => prevRooms.map(room => {
                         if (room.id === 'global-chat') {
@@ -325,7 +371,7 @@ const App: React.FC = () => {
       interval = window.setInterval(() => {
         setAllProgressData(prev => {
             if (!currentUser) return prev;
-            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
+            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0, points: 0, badges: [] };
             const newTimeSpent = currentProgress.timeSpent + (1 / 3600); // Add 1 second in hours
             return {
                 ...prev,
@@ -345,6 +391,19 @@ const App: React.FC = () => {
     };
   }, [currentUser, currentPage, dashboardView, labView]);
 
+  // FIX: Fetch historical disaster data on component mount to populate the state.
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      try {
+        const data = await fetchHistoricalDisasters();
+        setHistoricalDisasters(data);
+      } catch (err) {
+        console.error("Failed to fetch historical disasters:", err);
+      }
+    };
+    loadHistoricalData();
+  }, []);
+
   // --- STATE PERSISTENCE & INITIALIZATION ---
   // Load state from storage on initial mount
   useEffect(() => {
@@ -361,26 +420,11 @@ const App: React.FC = () => {
             setSimulationGuides(storedGuidesJSON ? JSON.parse(storedGuidesJSON) : {});
 
             const storedLatestNews = localStorage.getItem('latestNews');
-            const storedPreviousNews = localStorage.getItem('previousNews');
+            if(storedLatestNews) setLatestNews(JSON.parse(storedLatestNews));
 
-            if (storedLatestNews && storedPreviousNews) {
-                setLatestNews(JSON.parse(storedLatestNews));
-                setPreviousNews(JSON.parse(storedPreviousNews));
-            } else {
-                // Initial data seed for news
-                try {
-                    const [latest, previous] = await Promise.all([
-                        fetchNews('latest'),
-                        fetchNews('previous')
-                    ]);
-                    const latestWithIds = latest.map((a, i) => ({ ...a, id: `latest-seed-${Date.now()}-${i}`, type: 'latest' as const }));
-                    const previousWithIds = previous.map((a, i) => ({ ...a, id: `previous-seed-${Date.now()}-${i}`, type: 'previous' as const }));
-                    setLatestNews(latestWithIds);
-                    setPreviousNews(previousWithIds);
-                } catch (err) {
-                    console.error("Failed to seed news data:", err);
-                }
-            }
+            const storedPreviousNews = localStorage.getItem('previousNews');
+            if(storedPreviousNews) setPreviousNews(JSON.parse(storedPreviousNews));
+            
 
             // Persistent data from localStorage
             const storedUsersJSON = localStorage.getItem('allUsers');
@@ -456,7 +500,7 @@ const App: React.FC = () => {
         }
     };
     loadInitialData();
-}, []); // Empty dependency array means this runs only once
+  }, []); // Empty dependency array means this runs only once
 
   // Save persistent data to localStorage when it changes (consolidated for performance)
   useEffect(() => {
@@ -513,18 +557,6 @@ const App: React.FC = () => {
     }
   }, [selectedModule, selectedQuiz]);
 
-  // Load historical disaster data once on mount
-  useEffect(() => {
-    const loadHistoricalData = async () => {
-        try {
-            const data = await fetchHistoricalDisasters();
-            setHistoricalDisasters(data);
-        } catch (err) {
-            console.error("Failed to load historical disaster data:", err);
-        }
-    };
-    loadHistoricalData();
-  }, []);
 
   // Effect for Service Worker Registration and Updates
   useEffect(() => {
@@ -685,7 +717,7 @@ const App: React.FC = () => {
         setAvatarMessage(translate('Connect with peers and educators. Share knowledge and stay prepared together!'));
       } else if (currentPage === 'iot') {
         setAvatarMood('neutral');
-        setAvatarMessage(translate('This is the IoT Alert dashboard. You can monitor the status of your connected devices here.'));
+        setAvatarMessage(translate('This is the Digital Sensors dashboard. You can use your device hardware to simulate alerts.'));
       } else {
          switch (dashboardView) {
             case 'dashboard':
@@ -757,14 +789,40 @@ const App: React.FC = () => {
       setLabView('simulation');
   }, []);
 
+  const checkAndAwardBadges = useCallback((userId: string) => {
+    setAllProgressData(prev => {
+        const currentProgress = prev[userId];
+        if (!currentProgress) return prev;
+
+        const newlyAwardedBadges = BADGES.filter(badge => 
+            !currentProgress.badges.includes(badge.id) && badge.criteria(currentProgress, modules)
+        ).map(badge => badge.id);
+
+        if (newlyAwardedBadges.length > 0) {
+            // TODO: Could add a toast/notification here for a better UX
+            console.log(`User ${userId} earned new badges:`, newlyAwardedBadges);
+            return {
+                ...prev,
+                [userId]: {
+                    ...currentProgress,
+                    badges: [...currentProgress.badges, ...newlyAwardedBadges]
+                }
+            };
+        }
+        return prev;
+    });
+  }, [modules]);
+
   const handleSimulationComplete = useCallback((module: LearningModule, score: LabScore) => {
       if (currentUser) {
+        const pointsAwarded = score.score >= 75 ? 100 : 0;
         setAllProgressData(prev => {
-            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
+            const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0, points: 0, badges: [] };
             return {
                 ...prev,
                 [currentUser.id]: {
                     ...currentProgress,
+                    points: currentProgress.points + pointsAwarded,
                     labScores: {
                         ...currentProgress.labScores,
                         [module.id]: score
@@ -772,21 +830,24 @@ const App: React.FC = () => {
                 }
             };
         });
+        checkAndAwardBadges(currentUser.id);
       }
       setLabView('lab_dashboard');
-  }, [currentUser]);
+  }, [currentUser, checkAndAwardBadges]);
 
   const handleQuizComplete = useCallback((score: number, totalQuestions: number) => {
     if (selectedQuiz && currentUser) {
       const result = { quizId: selectedQuiz.id, score, totalQuestions };
       setLastQuizResult(result);
       
+      const pointsAwarded = score * 10;
        setAllProgressData(prev => {
-           const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0 };
+           const currentProgress = prev[currentUser.id] || { quizScores: {}, labScores: {}, timeSpent: 0, points: 0, badges: [] };
            return {
                ...prev,
                [currentUser.id]: {
                    ...currentProgress,
+                   points: currentProgress.points + pointsAwarded,
                    quizScores: {
                        ...currentProgress.quizScores,
                        [selectedQuiz.id]: result
@@ -794,6 +855,7 @@ const App: React.FC = () => {
                }
            };
        });
+       checkAndAwardBadges(currentUser.id);
       
       const percentage = Math.round((score / totalQuestions) * 100);
       if (percentage >= 80) {
@@ -806,7 +868,7 @@ const App: React.FC = () => {
 
       setDashboardView('result');
     }
-  }, [selectedQuiz, translate, currentUser]);
+  }, [selectedQuiz, translate, currentUser, checkAndAwardBadges]);
 
   const handleReturnToDashboard = useCallback(() => {
     setSelectedModule(null);
@@ -948,8 +1010,9 @@ const App: React.FC = () => {
 
   const handleAddStudent = useCallback((studentData: any) => {
     if (!currentUser) return;
+    const newStudentId = `user-${Date.now()}`;
     const newStudent: User = {
-        id: `user-${Date.now()}`,
+        id: newStudentId,
         name: studentData.name,
         password: studentData.password,
         role: UserRole.STUDENT,
@@ -960,6 +1023,10 @@ const App: React.FC = () => {
         avatarStyle: 'default',
     };
     setAllUsers(prev => [...prev, newStudent]);
+    setAllProgressData(prev => ({
+        ...prev,
+        [newStudentId]: { quizScores: {}, labScores: {}, timeSpent: 0, points: 0, badges: [] }
+    }));
   }, [currentUser]);
 
   const handleUpdateStudent = useCallback((updatedStudent: User) => {
@@ -1328,12 +1395,13 @@ const App: React.FC = () => {
                                 onAddModule={() => handleOpenModuleEditor(null)}
                                 onEditModule={handleOpenModuleEditor}
                                 onDeleteModule={handleDeleteModule}
+                                isOnline={isOnline}
                             />;
             }
         case 'lab':
             switch(labView) {
                 case 'simulation':
-                    return selectedModule && <Simulation module={selectedModule} onComplete={(score) => handleSimulationComplete(selectedModule, score)} onBack={handleBackToLabDashboard} />;
+                    return selectedModule && <Simulation module={selectedModule} onComplete={(score) => handleSimulationComplete(selectedModule, score)} onBack={handleBackToLabDashboard} isOnline={isOnline} />;
                 case 'final_certificate':
                     return currentUser && <Certificate user={currentUser} onBack={handleBackToLabDashboard} />;
                 case 'solutions':
@@ -1346,9 +1414,10 @@ const App: React.FC = () => {
                                 onOpenQuizEditor={handleOpenQuizEditor}
                                 onOpenGuideEditor={handleOpenGuideEditor}
                                 onDisableLab={handleDisableLab}
+                                isOnline={isOnline}
                             />;
                 default:
-                    return currentUser && <LabDashboard user={currentUser} modules={modules} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} onOpenQuizEditor={handleOpenQuizEditor} onDisableLab={handleDisableLab} />;
+                    return currentUser && <LabDashboard user={currentUser} modules={modules} labScores={labScores} onStartSimulation={handleStartSimulation} onViewFinalCertificate={handleViewFinalCertificate} onOpenQuizEditor={handleOpenQuizEditor} onDisableLab={handleDisableLab} isOnline={isOnline} />;
             }
         case 'distress':
             return currentUser && <DistressForm user={currentUser} onBack={handleReturnToDashboard} onSubmit={handleDistressSubmit} isOnline={isOnline} />;
@@ -1360,7 +1429,8 @@ const App: React.FC = () => {
                 studentsForTracker = allUsers.filter(u => u.role === UserRole.STUDENT);
             }
             return currentUser && <ProgressTracker 
-                                    user={currentUser} 
+                                    user={currentUser}
+                                    allUsers={allUsers}
                                     modules={modules} 
                                     studentData={studentsForTracker} 
                                     progressData={allProgressData}
@@ -1369,18 +1439,22 @@ const App: React.FC = () => {
                                     onDeleteStudent={handleDeleteStudent}
                                     certificationStatus={certificationStatus}
                                     onToggleCertification={handleToggleCertification}
+                                    badgesConst={BADGES}
                                   />;
         case 'meteo':
-            return currentUser && <WindyMap user={currentUser} theme={theme} />;
+            return currentUser && <WindyMap user={currentUser} theme={theme} isOnline={isOnline} />;
         case 'tectonic':
-            return currentUser && <TectonicMap user={currentUser} />;
+            return currentUser && <TectonicMap user={currentUser} isOnline={isOnline} />;
         case 'news':
             return currentUser && <News 
                                     currentUser={currentUser} 
                                     latestNews={latestNews}
                                     previousNews={previousNews}
+                                    setLatestNews={setLatestNews}
+                                    setPreviousNews={setPreviousNews}
                                     onSave={handleSaveNewsArticle}
                                     onDelete={handleDeleteNewsArticle}
+                                    isOnline={isOnline}
                                 />;
         case 'exit_planner':
              return currentUser && <ExitPlanner 
@@ -1416,7 +1490,7 @@ const App: React.FC = () => {
                 onPostNotice={handlePostNotice}
             />;
         case 'iot':
-            return <IoTAlertDashboard activeAlert={activeAlert} />;
+            return <IoTAlertDashboard activeAlert={activeAlert} onTriggerAlert={setActiveAlert} />;
         default:
             return null;
     }
@@ -1451,18 +1525,14 @@ const App: React.FC = () => {
               <>
                <Header
                   user={currentUser}
-                  institution={{
-                    id: `inst-${currentUser.id}`,
-                    name: currentUser.institutionName,
-                    address: currentUser.institutionAddress || '',
-                    phoneNumber: currentUser.institutionPhone || '',
-                  }}
+                  progress={studentProgress}
                   onProfileClick={handleShowProfile}
                   onLogout={handleLogout}
                   theme={theme}
                   toggleTheme={toggleTheme}
                   onMenuClick={() => setIsSidebarOpen(prev => !prev)}
                   showMenuButton={true}
+                  onSearchIconClick={handleOpenSearch}
                />
                <OfficialBanner />
               </>
@@ -1470,29 +1540,31 @@ const App: React.FC = () => {
             <div className="h-[69px] border-b border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
            )}
 
-          <main className="flex-1 p-4 md:p-6 lg:p-8 relative">
-              {activeAlert && (
-                <GlobalAlertBanner alertType={activeAlert} onDismiss={handleDismissGlobalAlert} />
-              )}
-              {isAuthenticated && isAlertsBannerVisible && currentUser && (
-                <div className="mb-6">
-                    <AlertsBanner
-                        location={alertLocation}
-                        onClose={handleCloseAlertsBanner}
-                        isOnline={isOnline}
-                    />
-                </div>
-              )}
-              {isAuthenticated ? renderContent() : (
-                <Dashboard theme={theme} user={null} modules={modules.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} labScores={{}} resources={[]} historicalDisasters={[]} onAddResource={()=>{}} onUpdateResource={()=>{}} onDeleteResource={()=>{}} onAddDisaster={()=>{}} onUpdateDisaster={()=>{}} onDeleteDisaster={()=>{}} onAddModule={()=>{}} onEditModule={()=>{}} onDeleteModule={()=>{}} />
-              )}
-          </main>
-          <AboutUs />
-          <Footer 
-              onDashboardClick={isAuthenticated ? handleFooterDashboardClick : () => {}}
-              onLabClick={isAuthenticated ? handleFooterLabClick : () => {}}
-              onDistressClick={isAuthenticated ? handleFooterDistressClick : () => {}}
-          />
+          <div className="relative flex-1 flex flex-col">
+            <main className="flex-1 p-4 md:p-6 lg:p-8 relative">
+                {activeAlert && (
+                  <GlobalAlertBanner alert={activeAlert} onDismiss={handleDismissGlobalAlert} />
+                )}
+                {isAuthenticated && isAlertsBannerVisible && currentUser && (
+                  <div className="mb-6">
+                      <AlertsBanner
+                          location={alertLocation}
+                          onClose={handleCloseAlertsBanner}
+                          isOnline={isOnline}
+                      />
+                  </div>
+                )}
+                {isAuthenticated ? renderContent() : (
+                  <Dashboard theme={theme} user={null} modules={modules.map(m => ({ ...m, progress: 0 }))} onSelectModule={() => {}} onStartQuiz={() => {}} quizScores={{}} labScores={{}} resources={[]} historicalDisasters={[]} onAddResource={()=>{}} onUpdateResource={()=>{}} onDeleteResource={()=>{}} onAddDisaster={()=>{}} onUpdateDisaster={()=>{}} onDeleteDisaster={()=>{}} onAddModule={()=>{}} onEditModule={()=>{}} onDeleteModule={()=>{}} isOnline={isOnline} />
+                )}
+            </main>
+            <AboutUs />
+            <Footer 
+                onDashboardClick={isAuthenticated ? handleFooterDashboardClick : () => {}}
+                onLabClick={isAuthenticated ? handleFooterLabClick : () => {}}
+                onDistressClick={isAuthenticated ? handleFooterDistressClick : () => {}}
+            />
+          </div>
         </div>
       </div>
 
@@ -1510,6 +1582,17 @@ const App: React.FC = () => {
           <PanicButton onClick={handleOpenPanicModal} />
         </>
       )}
+
+       <SearchOverlay 
+        isVisible={isSearchOverlayVisible}
+        onClose={handleCloseSearch}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchResults={searchResults}
+        onResultClick={handleResultClick}
+        onGoogleSearch={handleGoogleSearch}
+        isLoading={isSearchLoading}
+      />
 
       <PanicModal
         isOpen={isPanicModalOpen}

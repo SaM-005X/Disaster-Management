@@ -1,13 +1,16 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { User } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { LocationIcon } from './icons/LocationIcon';
 
 // Declare Leaflet library to TypeScript to avoid type errors with the global 'L' variable
 declare var L: any;
 
 interface TectonicMapProps {
     user: User;
+    isOnline: boolean;
 }
 
 interface EarthquakeFeature {
@@ -23,7 +26,7 @@ interface EarthquakeFeature {
     };
 }
 
-const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
+const TectonicMap: React.FC<TectonicMapProps> = ({ user, isOnline }) => {
   const { translate } = useTranslate();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null); // To hold the map instance
@@ -31,11 +34,37 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [allEarthquakesData, setAllEarthquakesData] = useState<any>(null);
+  
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number, lon: number }>({ lat: 20, lon: 0 });
+  const [zoom, setZoom] = useState(2);
 
   // Filter state
   const [magnitudeFilter, setMagnitudeFilter] = useState('2.5');
   const [timeFilter, setTimeFilter] = useState('day'); // 'hour', 'day', 'week'
+
+  const handleGetMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+        setError(translate('Geolocation is not supported by your browser.'));
+        return;
+    }
+    setIsFetchingLocation(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const { latitude, longitude } = position.coords;
+            setCurrentLocation({ lat: latitude, lon: longitude });
+            setZoom(6); // Zoom in closer
+            setIsFetchingLocation(false);
+        },
+        (err) => {
+            console.error("Geolocation error:", err);
+            setError(translate('Could not access your location. Please enable location services in your browser settings.'));
+            setIsFetchingLocation(false);
+        }
+    );
+  }, [translate]);
 
   // Helper function for earthquake marker color based on depth
   const getEarthquakeColor = (depth: number) => {
@@ -78,7 +107,7 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
       }
   }, [timeFilter, translate]);
   
-   // Effect for initial map setup and static layers
+   // Effect for initial map setup and all data layers
   useEffect(() => {
     if (mapContainerRef.current && !mapRef.current) {
       mapRef.current = L.map(mapContainerRef.current, { center: [20, 0], zoom: 2, minZoom: 2 });
@@ -86,50 +115,56 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       }).addTo(mapRef.current);
 
-      const fetchData = async () => {
-        try {
-            const [platesResponse, ringOfFireResponse, volcanoesResponse] = await Promise.all([
-                fetch('data/tectonic-plates.json'),
-                fetch('data/ring-of-fire.json'),
-                fetch('data/volcanoes.json'),
-            ]);
+      // Fetch all initial data in parallel for faster loading
+      const fetchInitialData = async () => {
+          setIsLoading(true);
+          setError(null);
+          try {
+              const [platesResponse, ringOfFireResponse, volcanoesResponse, earthquakeResponse] = await Promise.all([
+                  fetch('data/tectonic-plates.json'),
+                  fetch('data/ring-of-fire.json'),
+                  fetch('data/volcanoes.json'),
+                  fetch(getTimeFilterUrl(timeFilter))
+              ]);
 
-            if (!platesResponse.ok) throw new Error(translate(`Tectonic plates data fetch failed!`));
-            const platesData = await platesResponse.json();
-            L.geoJSON(platesData, { style: { color: "#f59e0b", weight: 2, opacity: 0.7 } }).addTo(mapRef.current);
+              // Process static layers
+              const platesData = await platesResponse.json();
+              L.geoJSON(platesData, { style: { color: "#f59e0b", weight: 2, opacity: 0.7 } }).addTo(mapRef.current);
 
-            if (!ringOfFireResponse.ok) throw new Error(translate(`Ring of Fire data fetch failed!`));
-            const ringOfFireData = await ringOfFireResponse.json();
-            L.geoJSON(ringOfFireData, { style: { color: "#dc2626", weight: 1, fillColor: "#dc2626", fillOpacity: 0.2 } }).addTo(mapRef.current);
-            
-            if (!volcanoesResponse.ok) throw new Error(translate(`Volcanoes data fetch failed!`));
-            const volcanoesData = await volcanoesResponse.json();
-            const volcanoIcon = L.divIcon({
-                html: '<svg viewBox="0 0 24 24" class="h-4 w-4 drop-shadow-md"><path fill="%23f43f5e" d="M12 0 L24 22 H0 Z"/></svg>',
-                className: '', iconSize: [16, 16], iconAnchor: [8, 16]
-            });
-            L.geoJSON(volcanoesData, {
-                pointToLayer: (feature: any, latlng: any) => L.marker(latlng, { icon: volcanoIcon }),
-                 onEachFeature: (feature: any, layer: any) => {
-                    if (feature.properties && feature.properties.Volcano_Name) {
-                        layer.bindPopup(
-                            `<h3 class="font-bold text-lg">${translate('Volcano')}: ${translate(feature.properties.Volcano_Name)}</h3><hr class="my-1">
-                             <p><strong>${translate('Type')}:</strong> ${translate(feature.properties.Primary_Volcano_Type)}</p>
-                             <p><strong>${translate('Country')}:</strong> ${translate(feature.properties.Country)}</p>`
-                        );
-                    }
-                }
-            }).addTo(mapRef.current);
+              const ringOfFireData = await ringOfFireResponse.json();
+              L.geoJSON(ringOfFireData, { style: { color: "#dc2626", weight: 1, fillColor: "#dc2626", fillOpacity: 0.2 } }).addTo(mapRef.current);
+              
+              const volcanoesData = await volcanoesResponse.json();
+              const volcanoIcon = L.divIcon({
+                  html: '<svg viewBox="0 0 24 24" class="h-4 w-4 drop-shadow-md"><path fill="%23f43f5e" d="M12 0 L24 22 H0 Z"/></svg>',
+                  className: '', iconSize: [16, 16], iconAnchor: [8, 16]
+              });
+              L.geoJSON(volcanoesData, {
+                  pointToLayer: (feature: any, latlng: any) => L.marker(latlng, { icon: volcanoIcon }),
+                   onEachFeature: (feature: any, layer: any) => {
+                      if (feature.properties && feature.properties.Volcano_Name) {
+                          layer.bindPopup(
+                              `<h3 class="font-bold text-lg">${translate('Volcano')}: ${translate(feature.properties.Volcano_Name)}</h3><hr class="my-1">
+                               <p><strong>${translate('Type')}:</strong> ${translate(feature.properties.Primary_Volcano_Type)}</p>
+                               <p><strong>${translate('Country')}:</strong> ${translate(feature.properties.Country)}</p>`
+                          );
+                      }
+                  }
+              }).addTo(mapRef.current);
+              
+              // Process earthquake data
+              const earthquakeData = await earthquakeResponse.json();
+              setAllEarthquakesData(earthquakeData);
 
-        } catch (e) {
-            if (e instanceof Error) {
-                setError(prev => prev ? `${prev}\n${e.message}` : e.message);
-            }
-        }
+          } catch (e) {
+              const errorMessage = e instanceof Error ? e.message : translate("An unknown error occurred while loading map data.");
+              setError(errorMessage);
+          } finally {
+              setIsLoading(false);
+          }
       };
 
-      fetchData();
-      fetchAndDisplayEarthquakes();
+      fetchInitialData();
       
       const legend = L.control({ position: 'bottomright' });
       legend.onAdd = function () {
@@ -154,12 +189,18 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [translate]); 
   
+  useEffect(() => {
+    if (mapRef.current && currentLocation) {
+      mapRef.current.flyTo([currentLocation.lat, currentLocation.lon], zoom);
+    }
+  }, [currentLocation, zoom]);
+
   // Effect to re-fetch earthquakes when time filter changes
   useEffect(() => {
-    if (mapRef.current) {
+    if (mapRef.current && isOnline) {
         fetchAndDisplayEarthquakes();
     }
-  }, [timeFilter, fetchAndDisplayEarthquakes]);
+  }, [timeFilter, fetchAndDisplayEarthquakes, isOnline]);
 
   // Effect to filter and re-render earthquakes when magnitude or data changes
   useEffect(() => {
@@ -237,7 +278,7 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
                         </div>
                     </div>
                     <div className="flex-1 min-w-[200px]">
-                        <label htmlFor="time-filter" className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+                        <label htmlFor="time-filter" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
                             {translate('Time Range')}
                         </label>
                         <div className="relative">
@@ -245,7 +286,8 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
                                 id="time-filter"
                                 value={timeFilter}
                                 onChange={(e) => setTimeFilter(e.target.value)}
-                                className="w-full appearance-none bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                disabled={!isOnline}
+                                className="w-full appearance-none bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
                             >
                                 <option value="hour">{translate('Past Hour')}</option>
                                 <option value="day">{translate('Past Day')}</option>
@@ -255,6 +297,14 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
                         </div>
                     </div>
                 </div>
+                <button onClick={handleGetMyLocation} disabled={isFetchingLocation || !isOnline} className="ml-auto flex items-center gap-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-200 rounded-full transition-colors text-sm disabled:opacity-70 disabled:cursor-wait">
+                    {isFetchingLocation ? (
+                        <div className="w-4 h-4 border-2 border-blue-800 dark:border-blue-200 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                        <LocationIcon className="h-4 w-4" />
+                    )}
+                    {isFetchingLocation ? translate('Fetching...') : translate('My Location')}
+                </button>
             </div>
         </div>
       <div 
@@ -267,8 +317,15 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
             aria-label={translate('Interactive world map showing tectonic plates and earthquakes')}
         />
 
+        {/* Offline Overlay */}
+        {!isOnline && (
+            <div className="absolute inset-0 bg-gray-900/60 flex items-center justify-center z-20 backdrop-blur-sm">
+                <span className="text-white text-lg font-semibold">{translate('Map is unavailable offline.')}</span>
+            </div>
+        )}
+
         {/* Loading Overlay */}
-        {isLoading && (
+        {isLoading && isOnline && (
             <div className="absolute inset-0 bg-gray-900/60 flex items-center justify-center z-20 backdrop-blur-sm">
                 <div className="flex items-center space-x-2 text-white text-lg font-semibold">
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
@@ -362,6 +419,24 @@ const TectonicMap: React.FC<TectonicMapProps> = ({ user }) => {
         .leaflet-popup-content .my-1 {
             margin-top: 0.25rem;
             margin-bottom: 0.25rem;
+        }
+
+        @media (max-width: 640px) {
+            .legend {
+                font-size: 10px;
+                padding: 4px 6px;
+                line-height: 16px;
+                max-width: 120px;
+            }
+            .legend i {
+                width: 12px;
+                height: 12px;
+                margin-right: 4px;
+            }
+            .legend h4 {
+                font-size: 12px;
+                margin-bottom: 3px;
+            }
         }
       `}</style>
     </div>

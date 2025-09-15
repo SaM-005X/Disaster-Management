@@ -298,7 +298,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onBack, onSave, backButtonText 
                                         name="name"
                                         value={editableUser.name}
                                         onChange={(e) => handleUserChange(e.target.name, e.target.value)}
-                                        className="text-4xl font-bold text-gray-900 dark:text-white bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:border-teal-500 w-full pr-12"
+                                        className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:border-teal-500 w-full pr-12"
                                         aria-label={translate("Your Name")}
                                     />
                                     <div className="absolute inset-y-0 right-0 flex items-center">
@@ -306,7 +306,7 @@ const Profile: React.FC<ProfileProps> = ({ user, onBack, onSave, backButtonText 
                                     </div>
                                </div>
                             ) : (
-                                <h1 id="profile-name" className={`text-4xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'profile-name' ? 'tts-highlight' : ''}`}>{user.name}</h1>
+                                <h1 id="profile-name" className={`text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === 'profile-name' ? 'tts-highlight' : ''}`}>{user.name}</h1>
                             )}
                             <p id="profile-role" className={`text-lg text-gray-600 dark:text-gray-400 ${currentlySpokenId === 'profile-role' ? 'tts-highlight' : ''}`}>{translate(user.role)}</p>
                         </div>

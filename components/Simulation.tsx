@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Type } from '@google/genai';
 import type { LearningModule, LabScore, ScenarioContent } from '../types';
@@ -29,7 +30,8 @@ const Simulation: React.FC<{
   module: LearningModule;
   onComplete: (score: LabScore) => void;
   onBack: () => void;
-}> = ({ module, onComplete, onBack }) => {
+  isOnline: boolean;
+}> = ({ module, onComplete, onBack, isOnline }) => {
     const [steps, setSteps] = useState<SimulationStep[]>([]);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [userInput, setUserInput] = useState('');
@@ -131,8 +133,10 @@ Based **strictly** on the provided Learning Module Content and how it applies to
     }, [module.title, moduleContext]);
 
     useEffect(() => {
-        generateNextStep(0);
-    }, [generateNextStep]);
+        if (isOnline) {
+            generateNextStep(0);
+        }
+    }, [generateNextStep, isOnline]);
     
     const currentStep = steps[currentStepIndex];
 
@@ -193,7 +197,9 @@ Based **strictly** on the provided Learning Module Content and how it applies to
                 setSelectedAnswer(null);
                 setShowHint(false);
                 setCurrentStepIndex(prev => prev + 1);
-                generateNextStep(currentStepIndex + 1);
+                if (isOnline) {
+                    generateNextStep(currentStepIndex + 1);
+                }
             } else {
                 setIsFinished(true);
             }
@@ -268,7 +274,7 @@ Based **strictly** on the provided Learning Module Content and how it applies to
         } finally {
             setIsEvaluating(false);
         }
-    }, [currentStepIndex, isEvaluating, isFinished, steps, moduleContext, generateNextStep, translate]);
+    }, [currentStepIndex, isEvaluating, isFinished, steps, moduleContext, generateNextStep, translate, isOnline]);
 
     const handleFinishSimulation = () => {
         const correctAnswersCount = steps.filter(s => s.score !== undefined && s.score >= CORRECT_SCORE_THRESHOLD).length;
@@ -293,6 +299,18 @@ Based **strictly** on the provided Learning Module Content and how it applies to
         };
         onComplete(finalLabScore);
     };
+
+    if (!isOnline) {
+        return (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 max-w-2xl mx-auto text-center">
+                <ErrorMessage message={translate('Simulations require an active internet connection and are not available offline.')} />
+                <button onClick={onBack} className="mt-6 flex items-center mx-auto space-x-2 text-teal-600 dark:text-teal-400 hover:underline font-semibold">
+                    <ArrowLeftIcon className="h-5 w-5" />
+                    <span>{translate('Back to Lab Dashboard')}</span>
+                </button>
+            </div>
+        );
+    }
 
     const isStepAnswered = !!currentStep?.userResponse;
 

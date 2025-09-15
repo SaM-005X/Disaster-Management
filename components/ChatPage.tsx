@@ -14,6 +14,7 @@ import { SettingsIcon } from './icons/SettingsIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { UploadIcon } from './icons/UploadIcon';
+import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 
 // Props for the main ChatPage component
 interface ChatPageProps {
@@ -69,6 +70,7 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
     const [deletingRoom, setDeletingRoom] = useState<ChatRoom | null>(null);
     const [isCreateNoticeModalOpen, setIsCreateNoticeModalOpen] = useState(false);
     const [isNoticeBannerVisible, setIsNoticeBannerVisible] = useState(true);
+    const [isChatVisibleOnMobile, setIsChatVisibleOnMobile] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     const latestNotice = useMemo(() => globalNotices?.[0] || null, [globalNotices]);
@@ -179,12 +181,17 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
             setIsNoticeBannerVisible(false);
         }
     };
+    
+    const handleSelectRoom = (roomId: string) => {
+        setSelectedRoomId(roomId);
+        setIsChatVisibleOnMobile(true);
+    };
 
     return (
         <>
             <div className="flex h-[calc(100vh-10rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
                 {/* Chat List Sidebar */}
-                <aside className="w-1/3 xl:w-1/4 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+                <aside className={`w-full md:w-1/3 xl:w-1/4 border-r border-gray-200 dark:border-gray-700 flex-col ${isChatVisibleOnMobile ? 'hidden md:flex' : 'flex'}`}>
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                         <h1 className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'chat-page-title' ? 'tts-highlight' : ''}`}>{translate('Chats')}</h1>
                     </div>
@@ -193,7 +200,7 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
                         {/* Global Chat */}
                         <div className="p-2">
                             <h2 className={`px-2 py-1 text-xs font-bold text-gray-500 uppercase ${currentlySpokenId === 'global-chat-header' ? 'tts-highlight' : ''}`}>{translate('Global Chat')}</h2>
-                            <button onClick={() => setSelectedRoomId('global-chat')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${selectedRoomId === 'global-chat' ? 'bg-teal-50 dark:bg-teal-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                            <button onClick={() => handleSelectRoom('global-chat')} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${selectedRoomId === 'global-chat' ? 'bg-teal-50 dark:bg-teal-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                 <div className="h-10 w-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center"><UsersIcon className="h-5 w-5"/></div>
                                 <div>
                                     <p className={`font-semibold text-gray-900 dark:text-white ${currentlySpokenId === 'global-chat-list-name' ? 'tts-highlight' : ''}`}>{translate('Global Chat')}</p>
@@ -213,7 +220,7 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
                                 </div>
                                 {myPrivateRooms.map(room => (
                                     <div key={room.id} className="relative group">
-                                        <button onClick={() => setSelectedRoomId(room.id)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${selectedRoomId === room.id ? 'bg-teal-50 dark:bg-teal-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                                        <button onClick={() => handleSelectRoom(room.id)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors ${selectedRoomId === room.id ? 'bg-teal-50 dark:bg-teal-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                                             <div className="h-10 w-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center"><LockIcon className="h-5 w-5"/></div>
                                             <div className="overflow-hidden">
                                                 <p className={`font-semibold text-gray-900 dark:text-white truncate ${currentlySpokenId === `private-chat-list-name-${room.id}` ? 'tts-highlight' : ''}`}>{translate(room.name)}</p>
@@ -227,11 +234,16 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
                 </aside>
 
                 {/* Main Chat View */}
-                <main className="flex-1 flex flex-col">
+                <main className={`flex-1 flex-col ${isChatVisibleOnMobile ? 'flex' : 'hidden md:flex'}`}>
                     {selectedRoom ? (
                         <>
                             <header className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <h2 className={`text-xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === `active-chat-header-${selectedRoom.id}` ? 'tts-highlight' : ''}`}>{translate(selectedRoom.name)}</h2>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setIsChatVisibleOnMobile(false)} className="md:hidden p-2 rounded-full -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        <ArrowLeftIcon className="h-6 w-6" />
+                                    </button>
+                                    <h2 className={`text-xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === `active-chat-header-${selectedRoom.id}` ? 'tts-highlight' : ''}`}>{translate(selectedRoom.name)}</h2>
+                                </div>
                                 {selectedRoom.id === 'global-chat' && currentUser.role === UserRole.GOVERNMENT_OFFICIAL && (
                                     <button onClick={() => setIsCreateNoticeModalOpen(true)} className="flex items-center gap-2 text-sm font-bold bg-amber-500 text-white py-1.5 px-3 rounded-full hover:bg-amber-600">
                                         <MegaphoneIcon className="h-5 w-5" />
@@ -266,7 +278,7 @@ const ChatPage: React.FC<ChatPageProps> = (props) => {
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         placeholder={translate('Type your message...')}
-                                        className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-800 dark:text-gray-100"
                                     />
                                     <button type="submit" className="p-3 bg-teal-600 text-white rounded-full hover:bg-teal-700 disabled:bg-gray-400">
                                         <SendIcon className="h-5 w-5"/>

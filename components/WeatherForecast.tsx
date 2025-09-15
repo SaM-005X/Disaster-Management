@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
-import { fetchWeatherForecast } from '../services/weatherService';
 import type { ForecastDay } from '../types';
 import { WeatherIcon } from './icons/WeatherIcon';
 import { WindArrowIcon } from './icons/WindArrowIcon';
@@ -9,6 +8,9 @@ import ErrorMessage from './ErrorMessage';
 
 interface WeatherForecastProps {
     locationName: string;
+    forecast: ForecastDay[] | null;
+    isLoading: boolean;
+    error: string | null;
 }
 
 const ForecastDayCard: React.FC<{ day: ForecastDay; isHighlighted: boolean }> = ({ day, isHighlighted }) => {
@@ -32,41 +34,9 @@ const ForecastDayCard: React.FC<{ day: ForecastDay; isHighlighted: boolean }> = 
 };
 
 
-const WeatherForecast: React.FC<WeatherForecastProps> = ({ locationName }) => {
+const WeatherForecast: React.FC<WeatherForecastProps> = ({ locationName, forecast, isLoading, error }) => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
-    const [forecast, setForecast] = useState<ForecastDay[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        const getForecast = async () => {
-            if (!locationName) return;
-            try {
-                setIsLoading(true);
-                setError(null);
-                setForecast(null); // Clear previous forecast while loading
-                const data = await fetchWeatherForecast(locationName);
-                if (data && data.length > 0) {
-                    setForecast(data);
-                } else {
-                    setError(translate('Could not find forecast data for this specific location.'));
-                    setForecast(null);
-                }
-            } catch (err) {
-                 if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError(translate('Failed to load weather forecast. Please try again later.'));
-                }
-                console.error(err);
-                setForecast(null); // Ensure forecast is cleared on error
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        getForecast();
-    }, [locationName, translate]);
 
     useEffect(() => {
         if (forecast) {
@@ -103,6 +73,10 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({ locationName }) => {
         return <ErrorMessage message={error} className="mt-6" />;
     }
     
+    if (!forecast || forecast.length === 0) {
+        return <ErrorMessage message={translate('Could not find forecast data for this specific location.')} className="mt-6" />
+    }
+
     return (
         <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md">
             <h2 id="forecast-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'forecast-header' ? 'tts-highlight' : ''}`}>

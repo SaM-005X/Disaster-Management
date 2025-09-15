@@ -1,11 +1,13 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
-import type { User, ReliefCamp } from '../types';
+import type { User, ReliefCamp, Alert, ForecastDay } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
 import WeatherForecast from './WeatherForecast';
 import LocationAlerts from './LocationAlerts';
 import ReliefCamps from './ReliefCamps';
 import { getCoordinatesForLocation, getLocationNameForCoordinates } from '../services/geocodingService';
+import { fetchMeteorologicalData, type MeteorologicalData } from '../services/meteorologicalService';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronUpIcon } from './icons/ChevronUpIcon';
 import { SearchIcon } from './icons/SearchIcon';
@@ -22,9 +24,10 @@ interface LocationState {
 interface WindyMapProps {
     user: User;
     theme: Theme;
+    isOnline: boolean;
 }
 
-const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
+const WindyMap: React.FC<WindyMapProps> = ({ user, theme, isOnline }) => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
     
@@ -34,6 +37,30 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [zoom, setZoom] = useState(7);
+    const [metData, setMetData] = useState<MeteorologicalData | null>(null);
+
+    // Fetch all meteorological data in one go
+    useEffect(() => {
+        if (currentLocation && isOnline) {
+            const getMetData = async () => {
+                setIsLoading(true);
+                setError(null);
+                try {
+                    const data = await fetchMeteorologicalData(currentLocation.lat, currentLocation.lon, currentLocation.name);
+                    setMetData(data);
+                } catch (err) {
+                    if (err instanceof Error) setError(err.message);
+                    else setError(translate('An unknown error occurred while fetching weather data.'));
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            getMetData();
+        } else {
+            setIsLoading(false);
+        }
+    }, [currentLocation, translate, isOnline]);
+
 
     const handleSearch = useCallback(async (query: string) => {
         const locationToSearch = query.trim();
@@ -97,9 +124,17 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
     // Effect for initial location loading
     useEffect(() => {
         const initializeLocation = () => {
+            // Use institution address as the primary fallback
+            const fallbackLocation = user.institutionAddress || user.institutionName || 'New Delhi, India';
+            
+            if (!isOnline) {
+                setCurrentLocation({ name: translate('Offline Mode'), lat: 28.61, lon: 77.23 });
+                setIsLoading(false);
+                return;
+            }
+
             if (!navigator.geolocation) {
-                setError(translate('Geolocation not supported. Showing institution location.'));
-                const fallbackLocation = user.institutionAddress || user.institutionName;
+                setError(translate('Geolocation not supported. Showing default location.'));
                 handleSearch(fallbackLocation);
                 return;
             }
@@ -109,16 +144,15 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
                     handleGetMyLocation(); // On success, get the location details
                 },
                 (err) => {
-                    console.error("Initial geolocation error:", err);
-                    setError(translate('Location access denied. Showing institution location as fallback.'));
-                    const fallbackLocation = user.institutionAddress || user.institutionName;
+                    console.warn("Initial geolocation error:", err.message);
+                    setError(translate('Could not auto-detect location. Showing default location as fallback.'));
                     handleSearch(fallbackLocation);
                 }
             );
         };
         initializeLocation();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run only once on mount
+    }, [isOnline]); // Rerun if network status changes on load
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -174,18 +208,19 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder={translate('Search any city, region, or address...')}
-                            className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                            disabled={!isOnline}
+                            className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 disabled:opacity-50"
                         />
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     </div>
-                    <button type="submit" disabled={isLoading} className="px-6 py-2 bg-teal-600 text-white font-semibold rounded-full hover:bg-teal-700 disabled:bg-gray-400">
+                    <button type="submit" disabled={isLoading || !isOnline} className="px-6 py-2 bg-teal-600 text-white font-semibold rounded-full hover:bg-teal-700 disabled:bg-gray-400">
                         {isLoading ? translate('Searching...') : translate('Search')}
                     </button>
                 </form>
                 {error && <ErrorMessage message={error} />}
                 
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                     <button onClick={handleGetMyLocation} className="flex items-center gap-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-200 rounded-full transition-colors">
+                     <button onClick={handleGetMyLocation} disabled={!isOnline} className="flex items-center gap-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold dark:bg-blue-900/50 dark:hover:bg-blue-900 dark:text-blue-200 rounded-full transition-colors disabled:opacity-50">
                         <LocationIcon className="h-4 w-4" /> {translate('Use My Current Location')}
                     </button>
                     {currentLocation && (
@@ -196,7 +231,7 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
                 </div>
             </div>
 
-            {currentLocation && <LocationAlerts location={currentLocation.name} />}
+            {currentLocation && <LocationAlerts alerts={metData?.alerts ?? []} isLoading={isLoading} />}
             
             <div className="my-4">
                 <button
@@ -219,11 +254,16 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
             </div>
             
             {isForecastVisible && currentLocation && (
-                <WeatherForecast locationName={currentLocation.name} />
+                <WeatherForecast 
+                    locationName={currentLocation.name} 
+                    forecast={metData?.forecast ?? null}
+                    isLoading={isLoading}
+                    error={error}
+                />
             )}
 
             <div className="w-full aspect-video max-h-[500px] bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-                 {currentLocation ? (
+                 {currentLocation && isOnline ? (
                     <iframe
                         key={`${currentLocation.name}-${zoom}-${theme}`} // Force re-render on location/zoom/theme change
                         width="100%"
@@ -234,13 +274,18 @@ const WindyMap: React.FC<WindyMapProps> = ({ user, theme }) => {
                         allowFullScreen
                     ></iframe>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500">
-                        {isLoading ? translate('Determining your location...') : translate('Enter a location to begin.')}
+                    <div className="w-full h-full flex items-center justify-center text-center text-gray-500 dark:text-gray-400 p-4">
+                        {!isOnline ? translate('Map is unavailable offline.') : (isLoading ? translate('Determining your location...') : translate('Enter a location to begin.'))}
                     </div>
                 )}
             </div>
             
-            <ReliefCamps onCampSelect={handleCampSelect} />
+            <ReliefCamps 
+                onCampSelect={handleCampSelect} 
+                camps={metData?.reliefCamps ?? null}
+                isLoading={isLoading}
+                error={error}
+            />
             
         </div>
     );

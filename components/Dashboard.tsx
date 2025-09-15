@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import type { LearningModule, QuizScore, User, Resource, HistoricalDisaster, LabScore } from '../types';
 import { UserRole } from '../types';
 import ModuleCard from './ModuleCard';
@@ -7,6 +7,7 @@ import { useTTS, type TTSText } from '../contexts/TTSContext';
 import GovernmentWidgets from './GovernmentWidgets';
 import { Theme } from '../App';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
+import { FilterIcon } from './icons/FilterIcon';
 
 interface DashboardProps {
   modules: LearningModule[];
@@ -27,6 +28,7 @@ interface DashboardProps {
   onAddModule: () => void;
   onEditModule: (module: LearningModule) => void;
   onDeleteModule: (moduleId: string) => void;
+  isOnline: boolean;
 }
 
 const AddModuleCard: React.FC<{ onClick: () => void }> = ({ onClick }) => {
@@ -49,10 +51,39 @@ const Dashboard: React.FC<DashboardProps> = ({
   resources, historicalDisasters,
   onAddResource, onUpdateResource, onDeleteResource,
   onAddDisaster, onUpdateDisaster, onDeleteDisaster,
-  onAddModule, onEditModule, onDeleteModule
+  onAddModule, onEditModule, onDeleteModule,
+  isOnline
 }) => {
   const { translate } = useTranslate();
   const { registerTexts, currentlySpokenId } = useTTS();
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    modules.forEach(module => {
+      module.regionTags.forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort();
+  }, [modules]);
+
+  const filteredModules = useMemo(() => {
+    if (selectedTags.length === 0) {
+      return modules;
+    }
+    return modules.filter(module =>
+      selectedTags.some(selectedTag => module.regionTags.includes(selectedTag))
+    );
+  }, [modules, selectedTags]);
+  
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const clearFilter = () => {
+    setSelectedTags([]);
+  };
 
   const headerText = translate('Learning Modules');
   const subHeaderText = translate('Select a module to learn about disaster preparedness.');
@@ -62,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       { id: 'dashboard-header', text: headerText },
       { id: 'dashboard-subheader', text: subHeaderText },
     ];
-    modules.forEach(module => {
+    filteredModules.forEach(module => {
       textsToRead.push({ id: `module-${module.id}-title`, text: translate(module.title) });
       textsToRead.push({ id: `module-${module.id}-hazard`, text: translate(module.hazardType) });
       textsToRead.push({ id: `module-${module.id}-desc`, text: translate(module.description) });
@@ -82,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       textsToRead.push({ id: `module-${module.id}-quiz-btn`, text: translate('Take Quiz') });
     });
     registerTexts(textsToRead);
-  }, [modules, quizScores, labScores, registerTexts, translate, headerText, subHeaderText]);
+  }, [filteredModules, quizScores, labScores, registerTexts, translate, headerText, subHeaderText]);
 
   return (
     <div>
@@ -98,6 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             onAddDisaster={onAddDisaster}
             onUpdateDisaster={onUpdateDisaster}
             onDeleteDisaster={onDeleteDisaster}
+            isOnline={isOnline}
         />
       )}
       <div className="mb-8">
@@ -114,9 +146,34 @@ const Dashboard: React.FC<DashboardProps> = ({
           {subHeaderText}
         </p>
       </div>
+
+      <div className="mb-8 p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-md">
+        <div className="flex items-center gap-3 mb-4">
+          <FilterIcon className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+          <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{translate('Filter by Region')}</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={clearFilter}
+            className={`px-4 py-2 text-sm font-semibold rounded-full border-2 transition-colors ${selectedTags.length === 0 ? 'bg-teal-600 text-white border-teal-600' : 'bg-transparent text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-400 dark:hover:text-teal-400'}`}
+          >
+            {translate('All Regions')}
+          </button>
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => handleTagToggle(tag)}
+              className={`px-4 py-2 text-sm font-semibold rounded-full border-2 transition-colors ${selectedTags.includes(tag) ? 'bg-teal-600 text-white border-teal-600' : 'bg-transparent text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-400 dark:hover:text-teal-400'}`}
+            >
+              {translate(tag)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {modules.map(module => {
-          return (
+        {filteredModules.length > 0 ? (
+          filteredModules.map(module => (
             <ModuleCard
               key={module.id}
               module={module}
@@ -129,8 +186,13 @@ const Dashboard: React.FC<DashboardProps> = ({
               onEdit={onEditModule}
               onDelete={onDeleteModule}
             />
-          );
-        })}
+          ))
+        ) : (
+           <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-12 text-gray-500 dark:text-gray-400">
+                <p className="text-xl font-semibold">{translate('No modules found for the selected regions.')}</p>
+                <p>{translate('Try selecting different region tags or clearing the filter.')}</p>
+            </div>
+        )}
          {user?.role === UserRole.GOVERNMENT_OFFICIAL && (
             <AddModuleCard onClick={onAddModule} />
         )}

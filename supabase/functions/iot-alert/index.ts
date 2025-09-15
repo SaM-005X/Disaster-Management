@@ -1,8 +1,6 @@
 // supabase/functions/iot-alert/index.ts
 
-// Supabase Edge Functions types.
-// FIX: Corrected the types reference to use the recommended npm specifier.
-/// <reference types="npm:@supabase/functions-js@2" />
+// FIX: Removed incorrect type reference. Types are inferred from imports or declared below.
 
 // FIX: Declare the Deno global to satisfy TypeScript in non-Deno environments (like local editors).
 declare global {
@@ -54,11 +52,19 @@ serve(async (req) => {
     }
 
     // --- Step 2: Initialize the Supabase client ---
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing authorization header. User must be logged in.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
+    }
+    
     // Make sure to set these environment variables in your Supabase project settings
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: authHeader } } }
     )
 
     // --- Step 3: Broadcast the payload on a Realtime channel ---

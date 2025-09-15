@@ -3,15 +3,17 @@ import { useTranslate } from '../contexts/TranslationContext';
 import { FireIcon } from './icons/FireIcon';
 import { VibrationIcon } from './icons/VibrationIcon';
 import { XIcon } from './icons/XIcon';
-import type { AlertType } from '../App';
+import type { ActiveAlert } from '../App';
 
 interface GlobalAlertBannerProps {
-    alertType: AlertType;
+    alert: ActiveAlert;
     onDismiss: () => void;
 }
 
-const GlobalAlertBanner: React.FC<GlobalAlertBannerProps> = ({ alertType, onDismiss }) => {
+const GlobalAlertBanner: React.FC<GlobalAlertBannerProps> = ({ alert, onDismiss }) => {
     const { translate } = useTranslate();
+
+    if (!alert) return null;
 
     const config = {
         fire: {
@@ -30,7 +32,13 @@ const GlobalAlertBanner: React.FC<GlobalAlertBannerProps> = ({ alertType, onDism
         },
     };
 
-    const currentConfig = config[alertType];
+    const currentConfig = config[alert.type];
+    
+    let message = currentConfig.message;
+    if (alert.type === 'seismic' && alert.details?.magnitude) {
+        message = `${translate('Seismic activity detected.')} ${translate('Magnitude')}: ${alert.details.magnitude} ${translate('Richter')}. ${translate('Drop, Cover, and Hold On.')}`;
+    }
+
 
     return (
         <div 
@@ -41,7 +49,7 @@ const GlobalAlertBanner: React.FC<GlobalAlertBannerProps> = ({ alertType, onDism
                 <div className="flex-shrink-0">{currentConfig.icon}</div>
                 <div className="ml-4 flex-1">
                     <p className="font-extrabold text-xl tracking-wider">{currentConfig.title}</p>
-                    <p className="mt-1">{currentConfig.message}</p>
+                    <p className="mt-1">{message}</p>
                 </div>
                 <button
                     onClick={onDismiss}

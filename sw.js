@@ -1,3 +1,4 @@
+
 const CACHE_NAME = 'alertiq-cache-v1';
 
 // List all essential assets for offline access, including all module imagery and map data.
@@ -28,7 +29,7 @@ self.addEventListener('install', (event) => {
       console.log('Service Worker: Caching app shell and essential assets.');
       // Use individual requests to handle potential CORS issues gracefully for external assets.
       const promises = ASSETS_TO_CACHE.map(url => {
-        // For external URLs, use 'no-cors' mode.
+        // For external URLs, use 'no-cors' mode. This allows caching but the response is opaque.
         const request = url.startsWith('http') ? new Request(url, { mode: 'no-cors' }) : url;
         return cache.add(request).catch(err => {
           console.warn(`Failed to cache ${url}:`, err);
@@ -62,7 +63,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For API requests, always fetch from the network.
+  // For API requests (like Gemini), always fetch from the network.
   if (event.request.url.includes('generativelanguage.googleapis.com')) {
     event.respondWith(fetch(event.request));
     return;
@@ -86,7 +87,7 @@ self.addEventListener('fetch', (event) => {
         });
       }).catch(error => {
           console.log('Fetch failed; user is likely offline.', error);
-          // In a real-world app, you might want to return a custom offline page here.
+          // Here you could return a fallback offline page if you had one.
       });
     })
   );

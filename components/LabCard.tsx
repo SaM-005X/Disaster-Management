@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { LearningModule, LabScore, User } from '../types';
 import { UserRole } from '../types';
@@ -15,6 +16,7 @@ interface LabCardProps {
   currentUser: User;
   onOpenQuizEditor: (forModule: LearningModule) => void;
   onDisableLab: (moduleId: string) => void;
+  isOnline: boolean;
 }
 
 const getHazardColors = (hazard: string) => {
@@ -30,7 +32,7 @@ const getHazardColors = (hazard: string) => {
   }
 };
 
-const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, currentlySpokenId, currentUser, onOpenQuizEditor, onDisableLab }) => {
+const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, currentlySpokenId, currentUser, onOpenQuizEditor, onDisableLab, isOnline }) => {
   const { translate } = useTranslate();
   const isPassed = labScore && labScore.score >= 75;
   const isOfficial = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
@@ -66,7 +68,9 @@ const LabCard: React.FC<LabCardProps> = ({ module, labScore, onStartSimulation, 
       <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800/50">
         <button
           onClick={() => onStartSimulation(module)}
-          className="w-full flex items-center justify-center space-x-2 bg-teal-600 text-white hover:bg-teal-700 font-semibold text-sm transition-colors py-3 px-4 rounded-full shadow-md hover:shadow-lg"
+          disabled={!isOnline}
+          title={!isOnline ? translate('Simulations are unavailable offline.') : ''}
+          className="w-full flex items-center justify-center space-x-2 bg-teal-600 text-white hover:bg-teal-700 font-semibold text-sm transition-colors py-3 px-4 rounded-full shadow-md hover:shadow-lg disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           <BeakerIcon className="h-5 w-5" />
           <span>{isPassed ? translate('Retake Simulation') : translate('Start Simulation')}</span>

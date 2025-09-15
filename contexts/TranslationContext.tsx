@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useCallback, useEffect, useRef } from 'react';
 import { fetchTranslations } from '../services/translationService';
 
@@ -27,7 +28,7 @@ export const TranslationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const processQueue = useCallback(async () => {
-        if (queue.current.size === 0 || language === 'en') {
+        if (queue.current.size === 0 || language === 'en' || !navigator.onLine) {
             setIsTranslating(false);
             return;
         }

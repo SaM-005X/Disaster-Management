@@ -45,6 +45,12 @@
       .animate-pulse-fast {
           animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
       }
+      .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;  
+        overflow: hidden;
+      }
     </style>
     <script>
       // On page load or when changing themes, best to add inline in `head` to avoid FOUC

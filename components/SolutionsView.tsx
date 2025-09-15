@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Type } from '@google/genai';
 import type { LearningModule, Quiz, User, ModelSimulationGuide, ModelSimulationScenario } from '../types';
@@ -20,6 +21,7 @@ interface SolutionsViewProps {
   onOpenQuizEditor: (forModule: LearningModule) => void;
   onOpenGuideEditor: (forModule: LearningModule) => void;
   onDisableLab: (moduleId: string) => void;
+  isOnline: boolean;
 }
 
 interface Explanation {
@@ -58,7 +60,7 @@ const safeMarkdownToHTML = (text: string | undefined | null): string => {
     return finalHtml;
 };
 
-const SolutionsView: React.FC<SolutionsViewProps> = ({ currentUser, modules, quizzes, simulationGuides, onBack, onOpenQuizEditor, onOpenGuideEditor, onDisableLab }) => {
+const SolutionsView: React.FC<SolutionsViewProps> = ({ currentUser, modules, quizzes, simulationGuides, onBack, onOpenQuizEditor, onOpenGuideEditor, onDisableLab, isOnline }) => {
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
   const [quizExplanations, setQuizExplanations] = useState<Record<string, { explanations: Record<string, Explanation>; isLoading: boolean; error?: string }>>({});
   const { translate } = useTranslate();
@@ -115,6 +117,11 @@ const SolutionsView: React.FC<SolutionsViewProps> = ({ currentUser, modules, qui
   }, [modules, quizzes, openModuleId, simulationGuides, quizExplanations, registerTexts, translate]);
 
   const fetchQuizExplanations = useCallback(async (moduleId: string) => {
+    if (!isOnline) {
+        setQuizExplanations(prev => ({ ...prev, [moduleId]: { explanations: {}, isLoading: false, error: translate("AI explanations are unavailable offline.") } }));
+        return;
+    }
+
     const module = modules.find(m => m.id === moduleId);
     const quiz = quizzes.find(q => q.moduleId === moduleId);
     if (!module || !quiz) return;
@@ -166,7 +173,7 @@ ${moduleContextForAI}
         console.error("Failed to generate quiz explanations:", errorMessage);
         setQuizExplanations(prev => ({ ...prev, [moduleId]: { explanations: {}, isLoading: false, error: errorMessage } }));
     }
-  }, [modules, quizzes]);
+  }, [modules, quizzes, isOnline, translate]);
 
 
   const toggleAccordion = (moduleId: string) => {

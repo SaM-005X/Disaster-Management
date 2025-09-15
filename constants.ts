@@ -1,4 +1,4 @@
-import { UserRole, HazardType, type LearningModule, type Quiz, type Institution } from './types';
+import { UserRole, HazardType, type LearningModule, type Quiz, type Institution, type Badge } from './types';
 
 export const INSTITUTIONS: Institution[] = [
   {
@@ -7,6 +7,50 @@ export const INSTITUTIONS: Institution[] = [
     address: 'Sector XII, R.K. Puram, New Delhi - 110022, India',
     phoneNumber: '+91-11-49115500',
   }
+];
+
+export const BADGES: Badge[] = [
+  {
+    id: 'rookie-responder',
+    name: 'Rookie Responder',
+    description: 'Complete your first quiz and lab simulation.',
+    icon: 'ShieldCheckIcon',
+    criteria: (progress) => Object.keys(progress.quizScores).length >= 1 && Object.keys(progress.labScores).length >= 1,
+  },
+  {
+    id: 'quiz-whiz',
+    name: 'Quiz Whiz',
+    description: 'Achieve a perfect score on any quiz.',
+    icon: 'ClipboardCheckIcon',
+    criteria: (progress) => Object.values(progress.quizScores).some(q => q.score === q.totalQuestions),
+  },
+  {
+    id: 'lab-pro',
+    name: 'Lab Pro',
+    description: 'Achieve a score of 90% or higher on any simulation.',
+    icon: 'BeakerIcon',
+    criteria: (progress) => Object.values(progress.labScores).some(l => l.score >= 90),
+  },
+  {
+    id: 'earthquake-expert',
+    name: 'Earthquake Expert',
+    description: 'Master the Earthquake module by passing both the quiz and the lab.',
+    icon: 'ShieldCheckIcon',
+    criteria: (progress, modules) => {
+      const earthquakeModule = modules.find(m => m.hazardType === HazardType.EARTHQUAKE);
+      if (!earthquakeModule) return false;
+      const quizDone = progress.quizScores[earthquakeModule.quizId || ''] !== undefined;
+      const labDone = progress.labScores[earthquakeModule.id] !== undefined && progress.labScores[earthquakeModule.id].score >= 75;
+      return quizDone && labDone;
+    },
+  },
+  {
+    id: 'preparedness-champion',
+    name: 'Preparedness Champion',
+    description: 'Earn over 1000 points.',
+    icon: 'AwardIcon',
+    criteria: (progress) => progress.points >= 1000,
+  },
 ];
 
 export const MODULES: LearningModule[] = [

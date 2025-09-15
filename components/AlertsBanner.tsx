@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchRealTimeAlerts } from '../services/alertService';
 import type { Alert, AlertSeverity } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
+import { useTTS } from '../contexts/TTSContext';
 import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
 import { XIcon } from './icons/XIcon';
 import { InfoIcon } from './icons/InfoIcon';
@@ -44,10 +45,13 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose, isOnline
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { translate } = useTranslate();
+  const { rate, pitch, isSupported } = useTTS();
+  const hasSpokenAlertsRef = useRef(false);
 
   useEffect(() => {
     if (!isOnline) {
       setIsLoading(false);
+      hasSpokenAlertsRef.current = false; // Reset when offline
       return;
     }
     const getAlerts = async () => {
@@ -56,7 +60,8 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose, isOnline
         setError(null);
         const fetchedAlerts = await fetchRealTimeAlerts(location);
         setAlerts(fetchedAlerts);
-        setCurrentAlertIndex(0); // Reset index on new data to prevent race conditions
+        setCurrentAlertIndex(0); // Reset index on new data
+        hasSpokenAlertsRef.current = false; // Reset for new alerts, allowing them to be spoken
       } catch (err) {
         console.error("Failed to fetch alerts:", err);
         if (err instanceof Error) {
@@ -72,6 +77,42 @@ const AlertsBanner: React.FC<AlertsBannerProps> = ({ location, onClose, isOnline
     };
     getAlerts();
   }, [location, translate, isOnline]);
+
+  // Effect for audible alerts
+  useEffect(() => {
+    // Conditions: TTS is supported, not loading, alerts haven't been spoken for this batch, and there are alerts to speak.
+    if (isSupported && !isLoading && !hasSpokenAlertsRef.current && alerts.length > 0) {
+      // Find the highest severity alert to announce.
+      const severityOrder: Record<AlertSeverity, number> = { 'Warning': 3, 'Watch': 2, 'Advisory': 1 };
+      const highestSeverityAlert = alerts.reduce((prev, current) => {
+        return severityOrder[current.severity] > severityOrder[prev.severity] ? current : prev;
+      }, alerts[0]);
+
+      // Only speak for critical alerts ('Watch' is included as it's a type of advisory).
+      if (highestSeverityAlert.severity === 'Warning' || highestSeverityAlert.severity === 'Watch' || highestSeverityAlert.severity === 'Advisory') {
+        const synth = window.speechSynthesis;
+        // Cancel any ongoing page reading to prioritize the alert.
+        if (synth.speaking) {
+          synth.cancel();
+        }
+
+        const alertText = `${translate(highestSeverityAlert.severity)}: ${translate(highestSeverityAlert.title)}. ${translate(highestSeverityAlert.details)}`;
+        const utterance = new SpeechSynthesisUtterance(alertText);
+
+        // Customize tone based on severity.
+        if (highestSeverityAlert.severity === 'Warning') {
+          utterance.pitch = Math.min(pitch * 1.3, 2);   // Higher pitch for urgency, capped at max value.
+          utterance.rate = Math.min(rate * 1.2, 10); // Slightly faster, capped at max value.
+        } else {
+          utterance.pitch = pitch;
+          utterance.rate = rate;
+        }
+
+        synth.speak(utterance);
+        hasSpokenAlertsRef.current = true; // Mark as spoken to prevent re-announcing on visual cycle.
+      }
+    }
+  }, [alerts, isLoading, isSupported, pitch, rate, translate]);
 
   useEffect(() => {
     if (alerts.length > 1) {

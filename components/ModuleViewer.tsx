@@ -115,8 +115,8 @@ const ModuleViewer: React.FC<ModuleViewerProps> = ({ module, onStartQuiz, onBack
 
       <div className="border-b pb-6 mb-6 border-gray-200 dark:border-gray-700">
         <span id="module-hazard" className={`text-sm font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider ${currentlySpokenId === 'module-hazard' ? 'tts-highlight' : ''}`}>{translate(module.hazardType)}</span>
-        <h1 id="module-title" className={`text-5xl font-extrabold text-gray-900 dark:text-white mt-2 ${currentlySpokenId === 'module-title' ? 'tts-highlight' : ''}`}>{translate(module.title)}</h1>
-        <p id="module-desc" className={`text-gray-500 dark:text-gray-400 mt-3 text-xl ${currentlySpokenId === 'module-desc' ? 'tts-highlight' : ''}`}>{translate(module.description)}</p>
+        <h1 id="module-title" className={`text-3xl md:text-5xl font-extrabold text-gray-900 dark:text-white mt-2 ${currentlySpokenId === 'module-title' ? 'tts-highlight' : ''}`}>{translate(module.title)}</h1>
+        <p id="module-desc" className={`text-gray-500 dark:text-gray-400 mt-3 text-lg md:text-xl ${currentlySpokenId === 'module-desc' ? 'tts-highlight' : ''}`}>{translate(module.description)}</p>
       </div>
 
       <article className="max-w-none">

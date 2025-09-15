@@ -113,10 +113,20 @@ export interface LabScore {
   completedOn: string; // ISO date string
 }
 
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: 'AwardIcon' | 'BeakerIcon' | 'ClipboardCheckIcon' | 'ShieldCheckIcon'; // Using icon component names for dynamic rendering
+  criteria: (progress: StudentProgress, modules: LearningModule[]) => boolean;
+}
+
 export interface StudentProgress {
   quizScores: Record<string, QuizScore>; // quizId -> score
   labScores: Record<string, LabScore>;   // moduleId -> score
   timeSpent: number; // in hours
+  points: number;
+  badges: string[]; // array of badge IDs
 }
 
 export interface ForecastDay {
@@ -252,4 +262,12 @@ export interface GlobalNotice {
   postedById: string;
   postedByName: string;
   timestamp: string; // ISO date string
+}
+
+export interface SearchResult {
+  id: string;
+  type: 'module' | 'news';
+  title: string;
+  description: string;
+  data: LearningModule | NewsArticle;
 }

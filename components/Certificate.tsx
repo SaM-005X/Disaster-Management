@@ -97,7 +97,7 @@ const Certificate: React.FC<CertificateProps> = ({ user, onBack }) => {
                 <div className="my-8 text-center">
                     <AwardIcon className="h-24 w-24 text-amber-400 mx-auto my-6" />
                     <p id="cert-presented-to" className={`text-lg text-gray-600 dark:text-gray-300 ${currentlySpokenId === 'cert-presented-to' ? 'tts-highlight' : ''}`}>{translate('This certificate is proudly presented to')}</p>
-                    <p id="cert-user-name" className={`text-5xl font-bold text-gray-900 dark:text-white my-2 script-font ${currentlySpokenId === 'cert-user-name' ? 'tts-highlight' : ''}`}>{user.name}</p>
+                    <p id="cert-user-name" className={`text-3xl md:text-5xl font-bold text-gray-900 dark:text-white my-2 script-font ${currentlySpokenId === 'cert-user-name' ? 'tts-highlight' : ''}`}>{user.name}</p>
                     
                     <div className="mt-2 mb-4 text-gray-600 dark:text-gray-400 text-base space-y-1">
                         <p id="cert-user-role"><strong>{translate('Role')}:</strong> {translate(user.role)}</p>

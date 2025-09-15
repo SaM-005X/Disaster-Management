@@ -1,12 +1,27 @@
 import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse, type GenerateImagesParameters, type GenerateImagesResponse, type Chat } from '@google/genai';
 import { handleApiError } from './apiErrorHandler';
 
-if (!process.env.API_KEY) {
-    console.error("API_KEY environment variable not set. AI services will be unavailable.");
-}
+// Lazily initialize the AI client to avoid crashing on module load if the API key is missing.
+let ai: GoogleGenAI | null = null;
 
-// Centralized AI client instance
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+/**
+ * Gets the singleton instance of the GoogleGenAI client.
+ * Initializes it on the first call.
+ * @throws An error if the API key is not configured.
+ * @returns The initialized GoogleGenAI client.
+ */
+function getAiClient(): GoogleGenAI {
+    if (ai) {
+        return ai;
+    }
+    if (!process.env.API_KEY) {
+        // This error will now be thrown when an AI function is called, not on app load.
+        // This allows the app to load and show a more graceful error in the UI.
+        throw new Error("AI Service is not configured: Missing GOOGLE_API_KEY environment variable.");
+    }
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return ai;
+}
 
 /**
  * A generic wrapper for the generateContent API call with centralized error handling.
@@ -15,11 +30,9 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
  * @throws An error with a user-friendly message if the API call fails.
  */
 export async function generateContent(params: GenerateContentParameters): Promise<GenerateContentResponse> {
-    if (!process.env.API_KEY) {
-        throw new Error("AI Service is not configured. Missing API Key.");
-    }
     try {
-        const response = await ai.models.generateContent(params);
+        const client = getAiClient();
+        const response = await client.models.generateContent(params);
         return response;
     } catch (error) {
         throw new Error(handleApiError(error));
@@ -33,11 +46,9 @@ export async function generateContent(params: GenerateContentParameters): Promis
  * @throws An error with a user-friendly message if the API call fails.
  */
 export async function generateImages(params: GenerateImagesParameters): Promise<GenerateImagesResponse> {
-    if (!process.env.API_KEY) {
-        throw new Error("AI Service is not configured. Missing API Key.");
-    }
     try {
-        const response = await ai.models.generateImages(params);
+        const client = getAiClient();
+        const response = await client.models.generateImages(params);
         return response;
     } catch (error) {
         throw new Error(handleApiError(error));
@@ -51,13 +62,11 @@ export async function generateImages(params: GenerateImagesParameters): Promise<
  * @throws An error with a user-friendly message if chat creation fails.
  */
 export function createChatSession(params: Omit<GenerateContentParameters, 'contents'>): Chat {
-     if (!process.env.API_KEY) {
-        throw new Error("AI Service is not configured. Missing API Key.");
-    }
     try {
-        return ai.chats.create(params);
+        const client = getAiClient();
+        return client.chats.create(params);
     } catch (error) {
-        // Chat creation is synchronous and might not throw network errors, but we'll handle it just in case.
+        // Chat creation might not be async, but we'll handle errors just in case.
         throw new Error(handleApiError(error));
     }
 }

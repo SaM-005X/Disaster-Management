@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
@@ -8,16 +10,33 @@ import NewsCard from './NewsCard';
 import { PlusCircleIcon } from './icons/PlusCircleIcon';
 import NewsEditModal from './NewsCreatorModal';
 import ErrorMessage from './ErrorMessage';
+import { fetchNews } from '../services/newsService';
+import { handleApiError } from '../services/apiErrorHandler';
 
 interface NewsProps {
     currentUser: User;
     latestNews: NewsArticle[];
     previousNews: NewsArticle[];
+    setLatestNews: React.Dispatch<React.SetStateAction<NewsArticle[]>>;
+    setPreviousNews: React.Dispatch<React.SetStateAction<NewsArticle[]>>;
     onSave: (article: NewsArticle) => void;
     onDelete: (articleId: string) => void;
+    isOnline: boolean;
 }
 
-const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSave, onDelete }) => {
+const NewsCardSkeleton: React.FC = () => (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden animate-pulse">
+        <div className="w-full h-44 bg-gray-300 dark:bg-gray-700"></div>
+        <div className="p-5">
+            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/3 mb-4"></div>
+            <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-3"></div>
+            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-full mb-2"></div>
+            <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-5/6"></div>
+        </div>
+    </div>
+);
+
+const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, setLatestNews, setPreviousNews, onSave, onDelete, isOnline }) => {
     const [displayLatestNews, setDisplayLatestNews] = useState<NewsArticle[]>(latestNews);
     const [displayPreviousNews, setDisplayPreviousNews] = useState<NewsArticle[]>(previousNews);
     const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +47,32 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
     const isOfficial = currentUser.role === UserRole.GOVERNMENT_OFFICIAL;
+    
+    // Fetch news data on component mount if it's not already loaded.
+    useEffect(() => {
+        const loadNews = async () => {
+            if ((latestNews.length === 0 || previousNews.length === 0) && isOnline) {
+                setIsLoading(true);
+                setError(null);
+                try {
+                    const [latest, previous] = await Promise.all([
+                        fetchNews('latest'),
+                        fetchNews('previous')
+                    ]);
+                    const latestWithIds = latest.map((a, i) => ({ ...a, id: `latest-fetch-${Date.now()}-${i}`, type: 'latest' as const }));
+                    const previousWithIds = previous.map((a, i) => ({ ...a, id: `previous-fetch-${Date.now()}-${i}`, type: 'previous' as const }));
+                    setLatestNews(latestWithIds);
+                    setPreviousNews(previousWithIds);
+                } catch (err) {
+                    setError(handleApiError(err));
+                } finally {
+                    setIsLoading(false);
+                }
+            }
+        };
+        loadNews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOnline]); // Run only on initial mount or when online status changes
 
     useEffect(() => {
         setDisplayLatestNews(latestNews);
@@ -49,7 +94,7 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
                 const article = articles[i];
                 const needsEnrichment = !article.id.startsWith('user-') && (!article.summary || article.summary.split(' ').length < MIN_SUMMARY_WORDS);
 
-                if (needsEnrichment) {
+                if (needsEnrichment && isOnline) {
                     setNewsState(currentNews => 
                         currentNews.map(a => a.id === article.id ? { ...a, isSummarizing: true } : a)
                     );
@@ -72,7 +117,7 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
         enrichAndSetNews(displayLatestNews, setDisplayLatestNews);
         enrichAndSetNews(displayPreviousNews, setDisplayPreviousNews);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [latestNews, previousNews]); // Run only when props change
+    }, [latestNews, previousNews, isOnline]); // Run only when props change
 
     const handleOpenModal = (article: NewsArticle | null, type: 'latest' | 'previous') => {
         setModalConfig({ article, type });
@@ -115,21 +160,6 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
         registerTexts(textsToRead);
     }, [displayLatestNews, displayPreviousNews, headerText, subHeaderText, translate, registerTexts]);
 
-    const renderSkeletons = () => (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden animate-pulse">
-                    <div className="w-full h-44 bg-gray-300 dark:bg-gray-700"></div>
-                    <div className="p-5">
-                        <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-3"></div>
-                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full mb-2"></div>
-                        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-
     return (
         <div>
             <div className="mb-8">
@@ -149,7 +179,11 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
                         </button>
                     )}
                 </div>
-                {isLoading ? renderSkeletons() : (
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {Array.from({ length: 4 }).map((_, i) => <NewsCardSkeleton key={`latest-skel-${i}`} />)}
+                    </div>
+                ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {displayLatestNews.map((article) => <NewsCard key={article.id} article={article} currentUser={currentUser} onEdit={handleOpenModal} onDelete={onDelete} />)}
                     </div>
@@ -166,7 +200,11 @@ const News: React.FC<NewsProps> = ({ currentUser, latestNews, previousNews, onSa
                         </button>
                      )}
                 </div>
-                {isLoading ? renderSkeletons() : (
+                {isLoading ? (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {Array.from({ length: 4 }).map((_, i) => <NewsCardSkeleton key={`prev-skel-${i}`} />)}
+                    </div>
+                ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {displayPreviousNews.map((article) => <NewsCard key={article.id} article={article} currentUser={currentUser} onEdit={handleOpenModal} onDelete={onDelete} />)}
                     </div>

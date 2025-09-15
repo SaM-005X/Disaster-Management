@@ -19,6 +19,7 @@ import { TrashIcon } from './icons/TrashIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronUpIcon } from './icons/ChevronUpIcon';
 import FloorplanEditModal from './FloorplanEditModal';
+import { generateContent } from '../services/aiService';
 
 const fileToUrlAndDimensions = (file: File): Promise<{ url: string, width: number, height: number }> => {
     return new Promise((resolve, reject) => {
@@ -35,17 +36,44 @@ const fileToUrlAndDimensions = (file: File): Promise<{ url: string, width: numbe
     });
 };
 
-const fileUrlToBase64 = (url: string): Promise<{ base64: string, mimeType: string }> => {
+const urlOrDataUrlToBase64 = (url: string): Promise<{ base64: string, mimeType: string }> => {
+    // Handle data URLs directly
+    if (url.startsWith('data:')) {
+        return new Promise((resolve, reject) => {
+            try {
+                const parts = url.split(',');
+                if (parts.length !== 2) throw new Error('Invalid data URL format.');
+                const metaPart = parts[0].split(':')[1];
+                if (!metaPart) throw new Error('Invalid data URL metadata.');
+                const mimeType = metaPart.split(';')[0];
+                const base64 = parts[1];
+                if (!mimeType || !base64) throw new Error('Could not parse data URL.');
+                resolve({ base64, mimeType });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    // Handle blob URLs by fetching
     return new Promise((resolve, reject) => {
         fetch(url)
-            .then(response => response.blob())
+            .then(response => {
+                if (!response.ok) throw new Error(`Failed to fetch blob URL: ${response.statusText}`);
+                return response.blob();
+            })
             .then(blob => {
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     if (reader.error) {
                         return reject(reader.error);
                     }
-                    resolve({ base64: (reader.result as string).split(',')[1], mimeType: blob.type });
+                    const dataUrl = reader.result as string;
+                    const base64 = dataUrl.split(',')[1];
+                    if (base64 === undefined) { // Check for undefined specifically
+                        return reject(new Error('Failed to extract base64 string from blob.'));
+                    }
+                    resolve({ base64, mimeType: blob.type });
                 };
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
@@ -192,9 +220,8 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
         setExitPlan(null);
 
         try {
-            const { base64, mimeType } = await fileUrlToBase64(floorplanUrl);
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+            const { base64, mimeType } = await urlOrDataUrlToBase64(floorplanUrl);
+            
             const locationContext = textLocationInput.trim()
                 ? `The user says they are located at/in "${textLocationInput.trim()}". Your first task is to analyze the image to find the coordinates of this text-described location and use that as the starting point.`
                 : `The user is at coordinates {x: ${Math.round(userLocation!.x)}, y: ${Math.round(userLocation!.y)}}. This is your starting point.`;
@@ -229,7 +256,7 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
             const imagePart = { inlineData: { data: base64, mimeType } };
             const textPart = { text: prompt };
 
-            const response = await ai.models.generateContent({
+            const response = await generateContent({
                 model: 'gemini-2.5-flash',
                 contents: { parts: [imagePart, textPart] },
                 config: {
@@ -274,7 +301,6 @@ const ExitPlanner: React.FC<ExitPlannerProps> = ({ currentUser, storedFloorplans
         setChatbotResponse(null);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `You are an expert emergency dispatcher. The user has NOT provided a floorplan. Your primary goal is to provide calm, authoritative, and actionable safety advice based on the user's described situation.
 
 **YOUR KNOWLEDGE BASE:**
@@ -309,7 +335,7 @@ Based on the user's situation and your knowledge base, provide general, step-by-
 1.  **Do NOT ask for a floorplan.** Provide actionable guidance based only on the text provided.
 2.  Use markdown for clear formatting (**bolding**, lists) to ensure readability.`;
             
-            const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+            const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
             const responseText = response.text.trim();
             if (responseText) {
                 setChatbotResponse(responseText);

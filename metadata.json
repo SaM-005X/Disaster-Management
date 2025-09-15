@@ -3,6 +3,7 @@
   "description": "A digital platform for disaster management education targeted at students (K–12 & higher), teachers, and school administrators. It incorporates region-specific disaster modules, virtual drills, real-time alerts, and preparedness dashboards to build a resilient community.",
   "requestFramePermissions": [
     "microphone",
-    "geolocation"
+    "geolocation",
+    "camera"
   ]
 }

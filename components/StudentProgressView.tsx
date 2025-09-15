@@ -1,27 +1,36 @@
 import React, { useMemo, useEffect } from 'react';
-import type { User, LearningModule, StudentProgress } from '../types';
+import type { User, LearningModule, StudentProgress, Badge } from '../types';
 import { useTranslate } from '../contexts/TranslationContext';
 import { useTTS, type TTSText } from '../contexts/TTSContext';
 import LineChart from './charts/LineChart';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
+import { AwardIcon } from './icons/AwardIcon';
+import Leaderboard from './charts/Leaderboard';
 
 interface StudentProgressViewProps {
   user: User;
   modules: LearningModule[];
   progress: StudentProgress;
+  allUsers: User[];
+  progressData: Record<string, StudentProgress>;
+  badgesConst: Badge[];
 }
 
-const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules, progress }) => {
+const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules, progress, allUsers, progressData, badgesConst }) => {
     const { translate } = useTranslate();
     const { registerTexts, currentlySpokenId } = useTTS();
 
     const completedModulesCount = useMemo(() => {
         return modules.filter(module => {
-            const quizDone = progress.quizScores[module.quizId];
+            // FIX: Handle cases where quizId might be null or undefined.
+            const quizDone = progress.quizScores[module.quizId || ''];
+            if (!module.hasLab) {
+                return !!quizDone;
+            }
             const labDone = progress.labScores[module.id] && progress.labScores[module.id].score >= 75;
-            return quizDone && labDone;
+            return !!quizDone && labDone;
         }).length;
     }, [modules, progress]);
 
@@ -41,6 +50,14 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
         return points;
     }, [completedModulesCount, progress.timeSpent]);
 
+    const myBadges = useMemo(() => {
+        return badgesConst.filter(badge => progress.badges.includes(badge.id));
+    }, [badgesConst, progress.badges]);
+
+    const peers = useMemo(() => {
+        return allUsers.filter(u => u.role === user.role && u.institutionName === user.institutionName);
+    }, [allUsers, user]);
+
     useEffect(() => {
         const textsToRead: TTSText[] = [];
         textsToRead.push({ id: 'progress-student-header', text: translate('My Progress') });
@@ -49,7 +66,7 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
         textsToRead.push({ id: 'progress-student-breakdown-header', text: translate('Detailed Progress Breakdown') });
         
         modules.forEach(module => {
-            const quizScore = progress.quizScores[module.quizId];
+            const quizScore = progress.quizScores[module.quizId || ''];
             const labScore = progress.labScores[module.id];
             
             textsToRead.push({ id: `progress-module-${module.id}-title`, text: translate(module.title) });
@@ -58,12 +75,22 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
             const quizScoreText = quizScore ? `${translate('Score')}: ${quizScore.score} ${translate('out of')} ${quizScore.totalQuestions}` : translate('Not yet completed');
             textsToRead.push({ id: `progress-module-${module.id}-quiz-full`, text: `${quizText}. ${quizScoreText}` });
             
-            const labText = translate('Lab / Simulation');
-            const labScoreText = labScore ? `${translate('Score')}: ${labScore.score}%` : translate('Not yet completed');
-            textsToRead.push({ id: `progress-module-${module.id}-lab-full`, text: `${labText}. ${labScoreText}`});
+            if (module.hasLab) {
+                const labText = translate('Lab / Simulation');
+                const labScoreText = labScore ? `${translate('Score')}: ${labScore.score}%` : translate('Not yet completed');
+                textsToRead.push({ id: `progress-module-${module.id}-lab-full`, text: `${labText}. ${labScoreText}`});
+            }
         });
+        
+        textsToRead.push({ id: 'my-badges-header', text: translate('My Badges') });
+        myBadges.forEach(badge => {
+            textsToRead.push({ id: `badge-${badge.id}-name`, text: translate(badge.name) });
+            textsToRead.push({ id: `badge-${badge.id}-desc`, text: translate(badge.description) });
+        });
+        textsToRead.push({ id: 'leaderboard-header', text: translate('Class Leaderboard') });
+
         registerTexts(textsToRead);
-    }, [modules, progress, registerTexts, translate]);
+    }, [modules, progress, registerTexts, translate, myBadges]);
     
     return (
         <div>
@@ -72,74 +99,107 @@ const StudentProgressView: React.FC<StudentProgressViewProps> = ({ user, modules
                 <p id="progress-student-subheader" className={`text-gray-600 dark:text-gray-400 mt-2 ${currentlySpokenId === 'progress-student-subheader' ? 'tts-highlight' : ''}`}>{translate('Track your journey to becoming Surksha.')}</p>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md mb-8">
-                <h2 id="progress-student-chart-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'progress-student-chart-header' ? 'tts-highlight' : ''}`}>{translate('Learning Pace')}</h2>
-                <div className="h-64">
-                    <LineChart 
-                        data={chartData} 
-                        xAxisLabel={translate('Total Time Spent (Hours)')} 
-                        yAxisLabel={translate('Modules Completed')} 
-                    />
-                </div>
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md">
+                        <h2 id="progress-student-chart-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'progress-student-chart-header' ? 'tts-highlight' : ''}`}>{translate('Learning Pace')}</h2>
+                        <div className="h-64">
+                            <LineChart 
+                                data={chartData} 
+                                xAxisLabel={translate('Total Time Spent (Hours)')} 
+                                yAxisLabel={translate('Modules Completed')} 
+                            />
+                        </div>
+                    </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md">
-                 <div className="p-6">
-                    <h2 id="progress-student-breakdown-header" className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'progress-student-breakdown-header' ? 'tts-highlight' : ''}`}>{translate('Detailed Progress Breakdown')}</h2>
-                </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {modules.map(module => {
-                        const quizScore = progress.quizScores[module.quizId];
-                        const labScore = progress.labScores[module.id];
-                        const isQuizPassed = quizScore && (quizScore.score / quizScore.totalQuestions) >= 0.8;
-                        const isLabPassed = labScore && labScore.score >= 75;
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md">
+                         <div className="p-6">
+                            <h2 id="progress-student-breakdown-header" className={`text-2xl font-bold text-gray-800 dark:text-white ${currentlySpokenId === 'progress-student-breakdown-header' ? 'tts-highlight' : ''}`}>{translate('Detailed Progress Breakdown')}</h2>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {modules.map(module => {
+                                const quizScore = progress.quizScores[module.quizId || ''];
+                                const labScore = progress.labScores[module.id];
+                                const isQuizPassed = quizScore && (quizScore.score / quizScore.totalQuestions) >= 0.8;
+                                const isLabPassed = labScore && labScore.score >= 75;
 
-                        return (
-                             <div key={module.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                <h3 id={`progress-module-${module.id}-title`} className={`text-xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === `progress-module-${module.id}-title` ? 'tts-highlight' : ''}`}>{translate(module.title)}</h3>
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Quiz Progress */}
-                                    <div id={`progress-module-${module.id}-quiz-full`} className={`flex items-center gap-3 p-3 rounded-lg ${currentlySpokenId === `progress-module-${module.id}-quiz-full` ? 'tts-highlight' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                        <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${isQuizPassed ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'}`}>
-                                            <BookOpenIcon className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <p className={`font-semibold text-gray-800 dark:text-gray-200`}>{translate('Learning Module & Quiz')}</p>
-                                            {quizScore ? (
-                                                <div className={`flex items-center gap-2 text-sm`}>
-                                                    <CheckCircleIcon className={`h-4 w-4 ${isQuizPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
-                                                    <span className={`${isQuizPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                                                        {translate('Score')}: {quizScore.score}/{quizScore.totalQuestions}
-                                                    </span>
+                                return (
+                                     <div key={module.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <h3 id={`progress-module-${module.id}-title`} className={`text-xl font-bold text-gray-900 dark:text-white ${currentlySpokenId === `progress-module-${module.id}-title` ? 'tts-highlight' : ''}`}>{translate(module.title)}</h3>
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Quiz Progress */}
+                                            <div id={`progress-module-${module.id}-quiz-full`} className={`flex items-center gap-3 p-3 rounded-lg ${currentlySpokenId === `progress-module-${module.id}-quiz-full` ? 'tts-highlight' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${isQuizPassed ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'}`}>
+                                                    <BookOpenIcon className="h-6 w-6" />
                                                 </div>
-                                            ) : (
-                                                <p className={`text-sm text-gray-500 dark:text-gray-400`}>{translate('Not yet completed')}</p>
+                                                <div>
+                                                    <p className={`font-semibold text-gray-800 dark:text-gray-200`}>{translate('Learning Module & Quiz')}</p>
+                                                    {quizScore ? (
+                                                        <div className={`flex items-center gap-2 text-sm`}>
+                                                            <CheckCircleIcon className={`h-4 w-4 ${isQuizPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
+                                                            <span className={`${isQuizPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                                                                {translate('Score')}: {quizScore.score}/{quizScore.totalQuestions}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <p className={`text-sm text-gray-500 dark:text-gray-400`}>{translate('Not yet completed')}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {/* Lab Progress */}
+                                            {module.hasLab && (
+                                                <div id={`progress-module-${module.id}-lab-full`} className={`flex items-center gap-3 p-3 rounded-lg ${currentlySpokenId === `progress-module-${module.id}-lab-full` ? 'tts-highlight' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                    <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${isLabPassed ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'}`}>
+                                                        <BeakerIcon className="h-6 w-6" />
+                                                    </div>
+                                                    <div>
+                                                        <p className={`font-semibold text-gray-800 dark:text-gray-200`}>{translate('Lab / Simulation')}</p>
+                                                        {labScore ? (
+                                                             <div className={`flex items-center gap-2 text-sm`}>
+                                                                <CheckCircleIcon className={`h-4 w-4 ${isLabPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
+                                                                <span className={`${isLabPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                                                                    {translate('Score')}: {labScore.score}%
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <p className={`text-sm text-gray-500 dark:text-gray-400`}>{translate('Not yet completed')}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
-                                    {/* Lab Progress */}
-                                    <div id={`progress-module-${module.id}-lab-full`} className={`flex items-center gap-3 p-3 rounded-lg ${currentlySpokenId === `progress-module-${module.id}-lab-full` ? 'tts-highlight' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                                        <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${isLabPassed ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'}`}>
-                                            <BeakerIcon className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <p className={`font-semibold text-gray-800 dark:text-gray-200`}>{translate('Lab / Simulation')}</p>
-                                            {labScore ? (
-                                                 <div className={`flex items-center gap-2 text-sm`}>
-                                                    <CheckCircleIcon className={`h-4 w-4 ${isLabPassed ? 'text-emerald-500' : 'text-amber-500'}`} />
-                                                    <span className={`${isLabPassed ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                                                        {translate('Score')}: {labScore.score}%
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <p className={`text-sm text-gray-500 dark:text-gray-400`}>{translate('Not yet completed')}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-1 space-y-8">
+                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md">
+                        <h2 id="my-badges-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'my-badges-header' ? 'tts-highlight' : ''}`}>{translate('My Badges')}</h2>
+                         {myBadges.length > 0 ? (
+                                <ul className="space-y-4">
+                                    {myBadges.map(badge => (
+                                        <li key={badge.id} className="flex items-center gap-4">
+                                            <div className="p-3 bg-amber-100 dark:bg-amber-900/50 rounded-full">
+                                                <AwardIcon className="h-8 w-8 text-amber-500" />
+                                            </div>
+                                            <div>
+                                                <p id={`badge-${badge.id}-name`} className={`font-bold text-gray-800 dark:text-white ${currentlySpokenId === `badge-${badge.id}-name` ? 'tts-highlight' : ''}`}>{translate(badge.name)}</p>
+                                                <p id={`badge-${badge.id}-desc`} className={`text-sm text-gray-500 dark:text-gray-400 ${currentlySpokenId === `badge-${badge.id}-desc` ? 'tts-highlight' : ''}`}>{translate(badge.description)}</p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400 text-center py-4">{translate("You haven't earned any badges yet. Keep learning!")}</p>
+                            )}
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md">
+                        <h2 id="leaderboard-header" className={`text-2xl font-bold text-gray-800 dark:text-white mb-4 ${currentlySpokenId === 'leaderboard-header' ? 'tts-highlight' : ''}`}>{translate('Class Leaderboard')}</h2>
+                        <Leaderboard students={peers} progressData={progressData} currentUser={user} />
+                    </div>
                 </div>
             </div>
         </div>

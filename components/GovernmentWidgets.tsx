@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User, Resource, HistoricalDisaster } from '../types';
 import WindyMap from './WindyMap';
 import TectonicMap from './TectonicMap';
@@ -15,10 +15,11 @@ interface GovernmentWidgetsProps {
     user: User;
     theme: Theme;
     resources: Resource[];
-    historicalDisasters: HistoricalDisaster[];
     onAddResource: (data: Omit<Resource, 'id' | 'lastUpdated'>) => void;
     onUpdateResource: (data: Omit<Resource, 'lastUpdated'> & { id: string }) => void;
     onDeleteResource: (id: string) => void;
+    isOnline: boolean;
+    historicalDisasters: HistoricalDisaster[];
     onAddDisaster: (data: Omit<HistoricalDisaster, 'id'>) => void;
     onUpdateDisaster: (data: HistoricalDisaster) => void;
     onDeleteDisaster: (id: string) => void;
@@ -30,10 +31,11 @@ const GovernmentWidgets: React.FC<GovernmentWidgetsProps> = ({
     user, 
     theme,
     resources, 
-    historicalDisasters,
     onAddResource,
     onUpdateResource,
     onDeleteResource,
+    isOnline,
+    historicalDisasters,
     onAddDisaster,
     onUpdateDisaster,
     onDeleteDisaster
@@ -75,8 +77,8 @@ const GovernmentWidgets: React.FC<GovernmentWidgetsProps> = ({
             </div>
             
             <div className="mt-6">
-                {activeTab === 'weather' && <WindyMap user={user} theme={theme} />}
-                {activeTab === 'tectonic' && <TectonicMap user={user} />}
+                {activeTab === 'weather' && <WindyMap user={user} theme={theme} isOnline={isOnline} />}
+                {activeTab === 'tectonic' && <TectonicMap user={user} isOnline={isOnline} />}
                 {activeTab === 'resources' && (
                     <ResourceTracker 
                         resources={resources}
