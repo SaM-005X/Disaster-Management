@@ -1,7 +1,7 @@
 // This file holds the configuration for connecting to your Supabase project.
 
-export const SUPABASE_URL: string = "https://qupledgisxufetazurmv.supabase.co";
-export const SUPABASE_ANON_KEY: string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1cGxlZGdpc3h1ZmV0YXp1cm12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NjE4OTcsImV4cCI6MjA3MjIzNzg5N30.u-s6IDu34tl8m7u0iTIkX_rjMulHeqznES1x0TZmqcE";
+export const SUPABASE_URL: string = "https://emkprtjusgerbczutyla.supabase.co";
+export const SUPABASE_ANON_KEY: string = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVta3BydGp1c2dlcmJjenV0eWxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MjA4ODcsImV4cCI6MjA3NDM5Njg4N30.MK_i7TXP9uiGtXB2ghoJYC0zAv0cdp0UhyauVjtDbc4";
 
 /*
   Instructions to find your Supabase credentials:
