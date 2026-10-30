@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'alertiq-cache-v1';
+const CACHE_NAME = 'alertiq-cache-v2';
 
 // List all essential assets for offline access, including all module imagery and map data.
 const ASSETS_TO_CACHE = [
